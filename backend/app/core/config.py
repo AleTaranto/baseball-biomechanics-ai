@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     environment: str = "development"
     debug: bool = False
     api_prefix: str = ""
+    upload_dir: str = "sample-data/uploads"
+    max_upload_size_mb: int = 500
 
     model_config = SettingsConfigDict(
         env_file=".env",
