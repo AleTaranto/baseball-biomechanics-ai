@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from app.api.routes.health import router as health_router
+from app.api.routes.videos import router as videos_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 
@@ -15,6 +16,7 @@ app = FastAPI(
 )
 
 app.include_router(health_router)
+app.include_router(videos_router)
 
 
 @app.get("/")

@@ -1,53 +1,70 @@
 # Baseball Biomechanics AI
 
-Baseball Biomechanics AI is an early-stage platform for analyzing baseball swings using video, pose estimation, and biomechanical interpretation. The project is intentionally scoped for incremental delivery: we are starting with a solid repository foundation, a minimal API, and the infrastructure needed to support future vision and biomechanics work.
+[![Status](https://img.shields.io/badge/status-early%20bootstrap-orange)](https://github.com/AleTaranto/baseball-biomechanics-ai)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.111%2B-009688)](https://fastapi.tiangolo.com/)
 
-## Project status
+Baseball Biomechanics AI is an early-stage platform for analyzing baseball swings from video, reconstructing movement patterns, and turning raw motion data into explainable biomechanical insights.
 
-This project is still in its initial bootstrap phase. It is designed to be a modular foundation for future work on:
+The project is intentionally designed for incremental delivery: we start with a stable repository foundation, a minimal API, tested infrastructure, and an architecture that can evolve toward computer vision, pose estimation, and biomechanics analysis without overbuilding the initial phase.
 
-- video upload and validation;
-- frame extraction;
-- pose estimation;
-- movement reconstruction;
-- swing segmentation;
-- biomechanical metrics and interpretation;
-- actionable coaching feedback.
+## Why this project exists
 
-## Problem and objective
+The long-term goal is to help athletes, coaches, and analysts understand how movement quality, timing, sequencing, and force transfer relate to performance and potential injury risk.
 
-The long-term goal is to help athletes and coaches understand how movement quality, timing, sequencing, and efficiency relate to power generation and injury risk. The system is not intended to replace professional medical advice or coaching judgment. Instead, it aims to provide structured evidence and explanations grounded in biomechanical principles.
+This is not a medical diagnosis system. Instead, the platform aims to provide structured observations, evidence-based interpretations, and training-oriented feedback grounded in biomechanical principles.
 
-## Architecture overview
+## Current status
+
+This repository is currently in the bootstrap milestone.
+
+The immediate focus is to establish:
+
+- a clean repository structure;
+- a working Python/FastAPI backend;
+- validation via tests, linting, and type checking;
+- containerized local execution;
+- CI automation;
+- solid documentation and planning artifacts.
+
+## High-level architecture
 
 The repository is organized around a modular architecture:
 
-- `backend/` contains the FastAPI application, configuration, and tests.
-- `docs/` stores product, biomechanics, research, and architecture documentation.
-- `knowledge/` holds domain knowledge and future rule definitions.
-- `specs/` and `tasks/` document API and delivery planning.
-- `sample-data/` provides starting metadata for test videos.
-- `frontend/` is reserved for future web application work.
+- `backend/` — API, config, and application bootstrap
+- `docs/` — product, research, and architecture documentation
+- `knowledge/` — biomechanical knowledge, evidence, and assumptions
+- `specs/` — API and product specifications
+- `tasks/` — milestone and execution tracking
+- `sample-data/` — metadata for test videos and future fixtures
+- `frontend/` — reserved for future web UI work
 
-## Getting started
+## Key goals
+
+- improve understanding of power transfer and movement efficiency;
+- identify mechanical inefficiencies in the kinematic chain;
+- detect possible risk-related movement patterns;
+- provide actionable, explainable feedback based on biomechanical principles rather than simple comparison against elite athletes.
+
+## Quick start
 
 ### Prerequisites
 
 - Python 3.12+
 - pip
-- Docker and Docker Compose (for containerized local runs)
+- Docker and Docker Compose for containerized workflows
 
-### Local environment
+### Local development
 
 ```bash
 python -m venv .venv
-. .venv/bin/activate  # PowerShell: .\.venv\Scripts\Activate.ps1
+. .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Then open:
+Then visit:
 
 - `http://localhost:8000/health`
 
@@ -57,40 +74,66 @@ Then open:
 docker compose up --build
 ```
 
-The API will be available on:
-
-- `http://localhost:8000/health`
-
-## Running tests
+### Test, lint, and type checking
 
 ```bash
 pytest
-```
-
-## Linting and type checking
-
-```bash
 ruff check .
 mypy backend
 ```
 
-## Contributing
+## Repository map
 
-The project follows an incremental development model. Every future feature should be implemented as a clearly scoped task, with tests, documentation, and verification included in the same change.
+- `README.md` — project overview and onboarding
+- `ARCHITECTURE.md` — system design and boundaries
+- `IMPLEMENTATION_PLAN.md` — milestone-based delivery plan
+- `ROADMAP.md` — delivery roadmap
+- `DECISIONS.md` — architecture decision log
+- `ENGINEERING_PRINCIPLES.md` — rules for future coding agents
+- `CONTRIBUTING.md` — contribution guidelines
+- `docs/` — product and domain documentation
+- `knowledge/` — knowledge base for evidence and rules
+- `tasks/` — task structure and backlog
 
-See `CONTRIBUTING.md` and `ENGINEERING_PRINCIPLES.md` for contribution standards.
+## Project board
+
+This repository includes a GitHub Project for tracking milestones and backlog items.
+
+- GitHub Project: https://github.com/users/AleTaranto/projects/1
 
 ## Roadmap
 
-The current plan is captured in `IMPLEMENTATION_PLAN.md` and `ROADMAP.md`. The repository is intentionally structured to support the next phases without overbuilding the current scope.
+The long-term roadmap is organized in milestones covering:
 
-## Documentation map
+1. repository bootstrap and foundation
+2. video ingestion and validation
+3. frame extraction and processing
+4. pose estimation
+5. swing segmentation
+6. biomechanical data model
+7. metrics engine
+8. interpretation and recommendations
 
-- `ARCHITECTURE.md` ? system overview and module boundaries.
-- `IMPLEMENTATION_PLAN.md` ? milestone-based delivery plan.
-- `ROADMAP.md` ? prioritized delivery outlook.
-- `DECISIONS.md` ? architecture decisions log.
-- `ENGINEERING_PRINCIPLES.md` ? rules for future coding agents.
-- `docs/` ? product, research, and architecture notes.
-- `knowledge/` ? domain knowledge and evidence-driven rules.
-- `tasks/` ? task inventory and execution plan.
+See `IMPLEMENTATION_PLAN.md` and `ROADMAP.md` for the full plan.
+
+## Contributing
+
+The project follows an incremental delivery model. Each feature should be implemented as a clearly scoped task with tests, docs, and validation included in the same change.
+
+See:
+
+- `CONTRIBUTING.md`
+- `ENGINEERING_PRINCIPLES.md`
+- `tasks/README.md`
+
+## Documentation
+
+- `ARCHITECTURE.md`
+- `DECISIONS.md`
+- `docs/product/vision.md`
+- `docs/biomechanics/overview.md`
+- `knowledge/README.md`
+
+## Important note
+
+This repository is intentionally in an early stage. The goal is not to ship a complete biomechanical analysis platform in one step, but to create a robust foundation that can evolve safely and predictably.

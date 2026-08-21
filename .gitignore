@@ -25,6 +25,15 @@ build/
 dist/
 *.egg-info/
 
+# Uploaded media and sample data
+sample-data/uploads/
+sample-data/**/*.mp4
+sample-data/**/*.mov
+sample-data/**/*.avi
+sample-data/**/*.m4v
+sample-data/**/*.wmv
+sample-data/**/*.webm
+
 # IDE and OS
 .vscode/
 .DS_Store
