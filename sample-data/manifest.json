@@ -1,12 +1,24 @@
 {
   "videos": [
     {
-      "id": "example-001",
-      "filename": "example.mp4",
-      "athlete_id": null,
+      "id": "swing-001",
+      "filename": "swing1.mp4",
       "camera_view": "side",
-      "fps": null,
-      "resolution": null,
+      "duration_seconds": 1,
+      "notes": ""
+    },
+    {
+      "id": "swing-002",
+      "filename": "swing2.mp4",
+      "camera_view": "side",
+      "duration_seconds": 1,
+      "notes": ""
+    },
+    {
+      "id": "swing-003",
+      "filename": "swing3.mp4",
+      "camera_view": "side",
+      "duration_seconds": 1,
       "notes": ""
     }
   ]
