@@ -25,8 +25,9 @@ build/
 dist/
 *.egg-info/
 
-# Uploaded media and sample data
+# Uploaded media and generated processing outputs
 sample-data/uploads/
+sample-data/frames/
 sample-data/**/*.mp4
 sample-data/**/*.mov
 sample-data/**/*.avi
