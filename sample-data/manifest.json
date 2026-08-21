@@ -1,0 +1,13 @@
+{
+  "videos": [
+    {
+      "id": "example-001",
+      "filename": "example.mp4",
+      "athlete_id": null,
+      "camera_view": "side",
+      "fps": null,
+      "resolution": null,
+      "notes": ""
+    }
+  ]
+}

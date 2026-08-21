@@ -1,0 +1,11 @@
+services:
+  api:
+    build:
+      context: .
+    ports:
+      - "8000:8000"
+    environment:
+      APP_NAME: "Baseball Biomechanics AI"
+      ENVIRONMENT: development
+      DEBUG: "true"
+      API_PREFIX: ""
