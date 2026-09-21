@@ -28,6 +28,8 @@ let rightBatterBoxFill = null;
 
 // UI Elements
 const video = document.getElementById('video-element');
+const overlayCanvas = document.getElementById('overlay-canvas');
+const overlayCtx = overlayCanvas ? overlayCanvas.getContext('2d') : null;
 const scrubber = document.getElementById('frame-scrubber');
 const timeDisplay = document.getElementById('time-current');
 const frameCounter = document.getElementById('frame-counter');
@@ -38,6 +40,11 @@ const speedSelect = document.getElementById('playback-speed');
 const hudBadge = document.getElementById('hud-badge');
 const hudFlash = document.getElementById('hud-flash');
 const videoIdBadge = document.getElementById('current-video-id-badge');
+const toggleOverlaySkeleton = document.getElementById('toggle-overlay-skeleton');
+const toggleOverlayBat = document.getElementById('toggle-overlay-bat');
+const toggleOverlayTrail = document.getElementById('toggle-overlay-trail');
+const toggleHud = document.getElementById('toggle-hud');
+const toggleServerOverlay = document.getElementById('toggle-server-overlay');
 
 // Joint connection topology for 3D skeleton
 const SKELETON_CONNECTIONS = [
@@ -93,14 +100,40 @@ function switchMode(mode) {
   }
 }
 
+// Safe Video Source Swapper
+function setVideoSource(url, targetTime = 0, autoPlay = false) {
+  if (!video) return;
+  const isSame = video.src.endsWith(url) || video.src === url;
+  if (isSame) {
+    if (targetTime > 0 && targetTime < video.duration) {
+      video.currentTime = targetTime;
+    }
+    if (autoPlay) video.play().catch(() => {});
+    return;
+  }
+  const onMeta = () => {
+    video.removeEventListener('loadedmetadata', onMeta);
+    if (targetTime > 0 && targetTime < video.duration) {
+      video.currentTime = targetTime;
+    }
+    if (autoPlay) {
+      video.play().catch(e => console.warn('Autoplay prevented:', e));
+    }
+    const fps = (pipelineDataA && pipelineDataA.source_fps) || 30.0;
+    renderVideoOverlay(Math.floor(video.currentTime * fps));
+  };
+  video.addEventListener('loadedmetadata', onMeta);
+  video.src = url;
+  video.load();
+}
+
 // Quick Sample Video Selector
 async function loadSampleVideo(videoId) {
   currentVideoId = videoId;
   videoIdBadge.innerText = videoId;
   document.getElementById('compare-video-a-label').innerText = videoId;
 
-  video.src = `/api/v1/videos/${videoId}/stream`;
-  video.load();
+  setVideoSource(`/api/v1/videos/${videoId}/stream`, 0, false);
 
   const vidA = document.getElementById('video-element-a');
   if (vidA) {
@@ -134,8 +167,7 @@ async function handleFileUpload(event) {
     currentVideoId = data.id;
     videoIdBadge.innerText = currentVideoId.slice(0, 8) + '...';
 
-    video.src = `/api/v1/videos/${currentVideoId}/stream`;
-    video.load();
+    setVideoSource(`/api/v1/videos/${currentVideoId}/stream`, 0, false);
 
     await triggerPipeline();
   } catch (err) {
@@ -143,6 +175,265 @@ async function handleFileUpload(event) {
     badge.innerText = 'Upload Error';
     badge.className = 'text-xs font-normal px-2 py-0.5 rounded bg-red-950 text-red-400 border border-red-800';
     alert('Upload failed: ' + err.message);
+  }
+}
+
+// 2D Canvas Video Overlay (Skeleton, Bat, Trajectory Trail)
+function renderVideoOverlay(frameIndex) {
+  if (!overlayCanvas || !overlayCtx || !video) return;
+
+  // Auto-match overlay canvas resolution to DOM render size
+  const rect = overlayCanvas.getBoundingClientRect();
+  const width = Math.round(rect.width);
+  const height = Math.round(rect.height);
+  if (width === 0 || height === 0) return;
+
+  if (overlayCanvas.width !== width || overlayCanvas.height !== height) {
+    overlayCanvas.width = width;
+    overlayCanvas.height = height;
+  }
+
+  overlayCtx.clearRect(0, 0, width, height);
+
+  // If server overlay is active, user is already watching OpenCV burned frames
+  const isServerOverlay = toggleServerOverlay && toggleServerOverlay.checked;
+  if (isServerOverlay) return;
+
+  if (!pipelineDataA || !pipelineDataA.pose_3d_frames || pipelineDataA.pose_3d_frames.length === 0) {
+    return;
+  }
+
+  const frames = pipelineDataA.pose_3d_frames;
+  const safeIdx = Math.max(0, Math.min(frameIndex, frames.length - 1));
+  const fData = frames[safeIdx];
+  if (!fData) return;
+
+  // Compute CSS object-contain letterbox coordinates
+  let vidW = video.videoWidth || width;
+  let vidH = video.videoHeight || height;
+  if (vidW === 0 || vidH === 0) {
+    vidW = width;
+    vidH = height;
+  }
+
+  const vidAspect = vidW / vidH;
+  const canAspect = width / height;
+  let rendW, rendH, offsetX, offsetY;
+
+  if (canAspect > vidAspect) {
+    rendH = height;
+    rendW = height * vidAspect;
+    offsetX = (width - rendW) / 2;
+    offsetY = 0;
+  } else {
+    rendW = width;
+    rendH = width / vidAspect;
+    offsetX = 0;
+    offsetY = (height - rendH) / 2;
+  }
+
+  const toPx = (normX, normY) => ({
+    x: offsetX + normX * rendW,
+    y: offsetY + normY * rendH
+  });
+
+  const showSkeleton = toggleOverlaySkeleton ? toggleOverlaySkeleton.checked : true;
+  const showBat = toggleOverlayBat ? toggleOverlayBat.checked : true;
+  const showTrail = toggleOverlayTrail ? toggleOverlayTrail.checked : true;
+
+  // 1. Bat Trajectory Trail (drawn under skeleton and bat)
+  if (showTrail && pipelineDataA.bat_trajectory_3d && pipelineDataA.bat_trajectory_3d.length > 0) {
+    const traj = pipelineDataA.bat_trajectory_3d.slice(0, safeIdx + 1);
+    const validPts = [];
+    for (const pt of traj) {
+      if (pt.x_2d != null && pt.y_2d != null) {
+        validPts.push(toPx(pt.x_2d, pt.y_2d));
+      }
+    }
+    if (validPts.length > 1) {
+      overlayCtx.save();
+      overlayCtx.lineCap = 'round';
+      overlayCtx.lineJoin = 'round';
+
+      for (let i = 1; i < validPts.length; i++) {
+        const p0 = validPts[i - 1];
+        const p1 = validPts[i];
+        const progress = i / validPts.length;
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(p0.x, p0.y);
+        overlayCtx.lineTo(p1.x, p1.y);
+
+        const alpha = 0.25 + 0.75 * progress;
+        overlayCtx.lineWidth = 2 + 3.5 * progress;
+        overlayCtx.strokeStyle = `rgba(6, 182, 212, ${alpha})`;
+        overlayCtx.shadowColor = '#06b6d4';
+        overlayCtx.shadowBlur = 6;
+        overlayCtx.stroke();
+      }
+      overlayCtx.restore();
+    }
+  }
+
+  // 2. 2D Skeleton (Bones + Spine + Joints)
+  if (showSkeleton) {
+    overlayCtx.save();
+    overlayCtx.strokeStyle = 'rgba(16, 185, 129, 0.85)';
+    overlayCtx.lineWidth = 3.5;
+    overlayCtx.lineCap = 'round';
+    overlayCtx.shadowColor = 'rgba(52, 211, 153, 0.8)';
+    overlayCtx.shadowBlur = 5;
+
+    for (const [j1, j2] of SKELETON_CONNECTIONS) {
+      const p1 = fData[j1];
+      const p2 = fData[j2];
+      if (p1 && p2 && p1.x != null && p1.y != null && p2.x != null && p2.y != null) {
+        const pt1 = toPx(p1.x, p1.y);
+        const pt2 = toPx(p2.x, p2.y);
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(pt1.x, pt1.y);
+        overlayCtx.lineTo(pt2.x, pt2.y);
+        overlayCtx.stroke();
+      }
+    }
+
+    // Spine
+    if (fData.left_shoulder && fData.right_shoulder && fData.left_hip && fData.right_hip) {
+      const msx = (fData.left_shoulder.x + fData.right_shoulder.x) / 2;
+      const msy = (fData.left_shoulder.y + fData.right_shoulder.y) / 2;
+      const mhx = (fData.left_hip.x + fData.right_hip.x) / 2;
+      const mhy = (fData.left_hip.y + fData.right_hip.y) / 2;
+      const sPt = toPx(msx, msy);
+      const hPt = toPx(mhx, mhy);
+      overlayCtx.beginPath();
+      overlayCtx.strokeStyle = 'rgba(59, 130, 246, 0.85)';
+      overlayCtx.shadowColor = '#3b82f6';
+      overlayCtx.lineWidth = 4;
+      overlayCtx.moveTo(sPt.x, sPt.y);
+      overlayCtx.lineTo(hPt.x, hPt.y);
+      overlayCtx.stroke();
+    }
+
+    // Joint Nodes
+    for (const [name, pt] of Object.entries(fData)) {
+      if (name === 'bat') continue;
+      if (pt && pt.x != null && pt.y != null) {
+        const jpt = toPx(pt.x, pt.y);
+        overlayCtx.beginPath();
+        overlayCtx.arc(jpt.x, jpt.y, 4.5, 0, Math.PI * 2);
+        overlayCtx.fillStyle = '#10b981';
+        overlayCtx.shadowColor = '#34d399';
+        overlayCtx.shadowBlur = 6;
+        overlayCtx.fill();
+        overlayCtx.lineWidth = 1.5;
+        overlayCtx.strokeStyle = '#ffffff';
+        overlayCtx.stroke();
+      }
+    }
+    overlayCtx.restore();
+  }
+
+  // 3. 2D Bat Reconstruction Overlay (Tapered Shaft, Grip, Knob & Sweet Spot)
+  if (showBat && fData.bat) {
+    const bat = fData.bat;
+    let h2d = bat.handle_2d;
+    let b2d = bat.barrel_2d;
+    let s2d = bat.sweet_spot_2d;
+
+    if (!h2d && fData.left_wrist && fData.right_wrist) {
+      h2d = {
+        x: (fData.left_wrist.x + fData.right_wrist.x) / 2,
+        y: (fData.left_wrist.y + fData.right_wrist.y) / 2
+      };
+    }
+    if (!b2d && bat.barrel && h2d) {
+      b2d = {
+        x: Math.max(0, Math.min(1, (bat.barrel.x / 2.0) + 0.5)),
+        y: Math.max(0, Math.min(1, 1.0 - (bat.barrel.y / 1.8)))
+      };
+    }
+    if (!s2d && h2d && b2d) {
+      s2d = {
+        x: h2d.x + 0.75 * (b2d.x - h2d.x),
+        y: h2d.y + 0.75 * (b2d.y - h2d.y)
+      };
+    }
+
+    if (h2d && b2d) {
+      const hPt = toPx(h2d.x, h2d.y);
+      const bPt = toPx(b2d.x, b2d.y);
+      const sPt = s2d ? toPx(s2d.x, s2d.y) : null;
+
+      overlayCtx.save();
+      const dx = bPt.x - hPt.x;
+      const dy = bPt.y - hPt.y;
+      const len = Math.hypot(dx, dy);
+
+      if (len > 4) {
+        const nx = -dy / len;
+        const ny = dx / len;
+
+        const rHandle = 3.5;
+        const rBarrel = 7.5;
+
+        const p1 = { x: hPt.x + nx * rHandle, y: hPt.y + ny * rHandle };
+        const p2 = { x: bPt.x + nx * rBarrel, y: bPt.y + ny * rBarrel };
+        const p3 = { x: bPt.x - nx * rBarrel, y: bPt.y - ny * rBarrel };
+        const p4 = { x: hPt.x - nx * rHandle, y: hPt.y - ny * rHandle };
+
+        const grad = overlayCtx.createLinearGradient(hPt.x, hPt.y, bPt.x, bPt.y);
+        grad.addColorStop(0, '#0f172a');     // Black grip
+        grad.addColorStop(0.32, '#334155');  // Handle end
+        grad.addColorStop(0.33, '#b45309');  // Maple wood
+        grad.addColorStop(0.85, '#f59e0b');  // Golden barrel
+        grad.addColorStop(1.0, '#fbbf24');   // End cap
+
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(p1.x, p1.y);
+        overlayCtx.lineTo(p2.x, p2.y);
+        overlayCtx.arc(bPt.x, bPt.y, rBarrel, Math.atan2(ny, nx), Math.atan2(-ny, -nx), false);
+        overlayCtx.lineTo(p4.x, p4.y);
+        overlayCtx.closePath();
+
+        overlayCtx.fillStyle = grad;
+        overlayCtx.shadowColor = 'rgba(245, 158, 11, 0.7)';
+        overlayCtx.shadowBlur = 8;
+        overlayCtx.fill();
+
+        overlayCtx.lineWidth = 1.5;
+        overlayCtx.strokeStyle = '#ffffff';
+        overlayCtx.stroke();
+
+        // Bat Knob
+        overlayCtx.beginPath();
+        overlayCtx.arc(hPt.x, hPt.y, rHandle + 2.5, 0, Math.PI * 2);
+        overlayCtx.fillStyle = '#0f172a';
+        overlayCtx.fill();
+        overlayCtx.lineWidth = 1.5;
+        overlayCtx.strokeStyle = '#cbd5e1';
+        overlayCtx.stroke();
+
+        // Sweet Spot Target Ring
+        if (sPt) {
+          overlayCtx.beginPath();
+          overlayCtx.arc(sPt.x, sPt.y, 8, 0, Math.PI * 2);
+          overlayCtx.strokeStyle = '#06b6d4';
+          overlayCtx.lineWidth = 2;
+          overlayCtx.shadowColor = '#22d3ee';
+          overlayCtx.shadowBlur = 6;
+          overlayCtx.stroke();
+
+          overlayCtx.beginPath();
+          overlayCtx.moveTo(sPt.x - 5, sPt.y);
+          overlayCtx.lineTo(sPt.x + 5, sPt.y);
+          overlayCtx.moveTo(sPt.x, sPt.y - 5);
+          overlayCtx.lineTo(sPt.x, sPt.y + 5);
+          overlayCtx.strokeStyle = '#ffffff';
+          overlayCtx.lineWidth = 1.5;
+          overlayCtx.stroke();
+        }
+      }
+      overlayCtx.restore();
+    }
   }
 }
 
@@ -159,6 +450,7 @@ video.addEventListener('timeupdate', () => {
   frameCounter.innerText = `Frame ${currentFrame}/${totalFrames}`;
 
   updateHUD(currentFrame);
+  renderVideoOverlay(currentFrame);
 
   // Sync Three.js if in 3D mode
   if (currentMode === '3d' && pipelineDataA && pipelineDataA.pose_3d_frames) {
@@ -168,7 +460,18 @@ video.addEventListener('timeupdate', () => {
 
 scrubber.addEventListener('input', (e) => {
   const fps = (pipelineDataA && pipelineDataA.source_fps) || 30.0;
-  video.currentTime = parseFloat(e.target.value) / fps;
+  const currentFrame = parseInt(e.target.value, 10);
+  video.currentTime = currentFrame / fps;
+  renderVideoOverlay(currentFrame);
+  if (currentMode === '3d' && pipelineDataA && pipelineDataA.pose_3d_frames) {
+    update3DSkeleton(currentFrame);
+  }
+});
+
+video.addEventListener('seeked', () => {
+  const fps = (pipelineDataA && pipelineDataA.source_fps) || 30.0;
+  const currentFrame = Math.floor(video.currentTime * fps);
+  renderVideoOverlay(currentFrame);
 });
 
 btnPlayPause.addEventListener('click', () => {
@@ -186,6 +489,11 @@ btnStepBack.addEventListener('click', () => {
   btnPlayPause.innerText = '▶ Play';
   const fps = (pipelineDataA && pipelineDataA.source_fps) || 30.0;
   video.currentTime = Math.max(0, video.currentTime - 1.0 / fps);
+  const currentFrame = Math.floor(video.currentTime * fps);
+  renderVideoOverlay(currentFrame);
+  if (currentMode === '3d' && pipelineDataA && pipelineDataA.pose_3d_frames) {
+    update3DSkeleton(currentFrame);
+  }
 });
 
 btnStepFwd.addEventListener('click', () => {
@@ -193,29 +501,65 @@ btnStepFwd.addEventListener('click', () => {
   btnPlayPause.innerText = '▶ Play';
   const fps = (pipelineDataA && pipelineDataA.source_fps) || 30.0;
   video.currentTime = Math.min(video.duration, video.currentTime + 1.0 / fps);
+  const currentFrame = Math.floor(video.currentTime * fps);
+  renderVideoOverlay(currentFrame);
+  if (currentMode === '3d' && pipelineDataA && pipelineDataA.pose_3d_frames) {
+    update3DSkeleton(currentFrame);
+  }
 });
 
 speedSelect.addEventListener('change', (e) => {
   video.playbackRate = parseFloat(e.target.value);
 });
 
-function toggleOverlayMode(showOverlay) {
+// Toggle Layer Checkboxes Event Listeners
+[
+  'toggle-overlay-skeleton',
+  'toggle-overlay-bat',
+  'toggle-overlay-trail',
+  'toggle-hud'
+].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('change', () => {
+      const fps = (pipelineDataA && pipelineDataA.source_fps) || 30.0;
+      const currentFrame = Math.floor((video.currentTime || 0) * fps);
+      updateHUD(currentFrame);
+      renderVideoOverlay(currentFrame);
+    });
+  }
+});
+
+window.addEventListener('resize', () => {
+  const fps = (pipelineDataA && pipelineDataA.source_fps) || 30.0;
+  const currentFrame = Math.floor((video.currentTime || 0) * fps);
+  renderVideoOverlay(currentFrame);
+});
+
+function toggleOverlayMode(useServerOverlay) {
   if (!pipelineDataA) return;
   const currentTime = video.currentTime;
   const isPaused = video.paused;
 
-  if (showOverlay && pipelineDataA.overlay_video_url) {
-    video.src = pipelineDataA.overlay_video_url;
+  if (useServerOverlay && pipelineDataA.overlay_video_url) {
+    setVideoSource(pipelineDataA.overlay_video_url, currentTime, !isPaused);
   } else {
-    video.src = `/api/v1/videos/${currentVideoId}/stream`;
+    setVideoSource(`/api/v1/videos/${currentVideoId}/stream`, currentTime, !isPaused);
   }
-  video.currentTime = currentTime;
-  if (!isPaused) video.play();
+  const fps = (pipelineDataA && pipelineDataA.source_fps) || 30.0;
+  renderVideoOverlay(Math.floor(currentTime * fps));
 }
 
 // Update Realtime HUD Badges
 function updateHUD(frameIndex) {
   if (!pipelineDataA) return;
+
+  const showHud = toggleHud ? toggleHud.checked : true;
+  if (!showHud) {
+    hudBadge.classList.add('hidden');
+    hudFlash.classList.add('hidden');
+    return;
+  }
 
   // Impact Flash
   if (pipelineDataA.contact_frame !== null && Math.abs(frameIndex - pipelineDataA.contact_frame) <= 1) {
@@ -274,13 +618,16 @@ async function triggerPipeline() {
       setBatterStance(data.batter_handedness, false);
     }
 
-    // Update video source to generated overlay if requested
-    const overlayChecked = document.getElementById('toggle-overlay-video').checked;
-    if (overlayChecked && data.overlay_video_url) {
-      const curTime = video.currentTime;
-      video.src = data.overlay_video_url;
-      video.currentTime = curTime;
+    // Switch to server video if explicitly requested
+    const serverOverlayChecked = toggleServerOverlay && toggleServerOverlay.checked;
+    if (serverOverlayChecked && data.overlay_video_url) {
+      setVideoSource(data.overlay_video_url, video.currentTime, !video.paused);
     }
+
+    // Render Canvas Overlay immediately
+    const fps = data.source_fps || 30.0;
+    const curFrame = Math.floor((video.currentTime || 0) * fps);
+    renderVideoOverlay(curFrame);
 
     // Update Kinematic Sequencing & Efficiency Section
     const seqBadge = document.getElementById('badge-sequence-status');

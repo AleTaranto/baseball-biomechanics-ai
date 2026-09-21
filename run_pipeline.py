@@ -547,9 +547,11 @@ def run_pipeline(
         lw = f.joints.get("left_wrist")
         rw = f.joints.get("right_wrist")
         wrist_pts = []
+        wrist_2d_pts = []
         for j in (lw, rw):
             if j is not None and j.x is not None and j.y is not None:
                 wrist_pts.append(((j.x - 0.5) * 2.0, (1.0 - j.y) * 1.8, (j.z or 0.0) * -2.0))
+                wrist_2d_pts.append((j.x, j.y))
 
         if wrist_pts:
             hx = sum(p[0] for p in wrist_pts) / len(wrist_pts)
@@ -557,6 +559,12 @@ def run_pipeline(
             hz = sum(p[2] for p in wrist_pts) / len(wrist_pts)
         else:
             hx, hy, hz = -0.70, 0.95, 0.0
+
+        if wrist_2d_pts:
+            hx_2d = sum(p[0] for p in wrist_2d_pts) / len(wrist_2d_pts)
+            hy_2d = sum(p[1] for p in wrist_2d_pts) / len(wrist_2d_pts)
+        else:
+            hx_2d, hy_2d = 0.45, 0.45
 
         det = bat_tracking.detections[idx] if idx < len(bat_tracking.detections) else None
         if det and det.detected and det.barrel_point:
@@ -568,6 +576,8 @@ def run_pipeline(
             z_dir = 1.0 if idx >= contact_idx else -1.0
             bz = hz + z_dir * dz_mag
             conf = float(det.confidence or 0.85)
+            bx_2d = float(bx_norm)
+            by_2d = float(by_norm)
         else:
             is_rhb = (resolved_batter_stance == "RHB")
             prog = (idx - (contact_idx - 14)) / 22.0
@@ -582,16 +592,23 @@ def run_pipeline(
             by = hy + (dir_y / norm) * 0.85
             bz = hz + (dir_z / norm) * 0.85
             conf = 0.70
+            bx_2d = max(0.0, min(1.0, (bx / 2.0) + 0.5))
+            by_2d = max(0.0, min(1.0, 1.0 - (by / 1.8)))
 
         sx = hx + 0.75 * (bx - hx)
         sy = hy + 0.75 * (by - hy)
         sz = hz + 0.75 * (bz - hz)
+        sx_2d = hx_2d + 0.75 * (bx_2d - hx_2d)
+        sy_2d = hy_2d + 0.75 * (by_2d - hy_2d)
 
         frame_joints["bat"] = {
             "detected": True,
             "handle": {"x": round(hx, 4), "y": round(hy, 4), "z": round(hz, 4)},
             "barrel": {"x": round(bx, 4), "y": round(by, 4), "z": round(bz, 4)},
             "sweet_spot": {"x": round(sx, 4), "y": round(sy, 4), "z": round(sz, 4)},
+            "handle_2d": {"x": round(hx_2d, 4), "y": round(hy_2d, 4)},
+            "barrel_2d": {"x": round(bx_2d, 4), "y": round(by_2d, 4)},
+            "sweet_spot_2d": {"x": round(sx_2d, 4), "y": round(sy_2d, 4)},
             "confidence": round(conf, 2),
         }
         pose_3d_frames.append(frame_joints)
@@ -600,6 +617,8 @@ def run_pipeline(
             "x": round(bx, 4),
             "y": round(by, 4),
             "z": round(bz, 4),
+            "x_2d": round(bx_2d, 4),
+            "y_2d": round(by_2d, 4),
         })
 
     lead_knee_brace_angle = None

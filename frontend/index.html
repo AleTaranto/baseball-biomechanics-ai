@@ -127,9 +127,7 @@
       <div id="single-view-container" class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-xl flex flex-col">
         <!-- Video Canvas Area -->
         <div class="relative bg-black aspect-video flex items-center justify-center group overflow-hidden">
-          <video id="video-element" class="w-full h-full object-contain" playsinline preload="auto">
-            <source src="/api/v1/videos/swing1/stream" type="video/mp4">
-          </video>
+          <video id="video-element" class="w-full h-full object-contain" src="/api/v1/videos/swing1/stream" playsinline preload="auto" muted></video>
           <canvas id="overlay-canvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
 
           <!-- Empty State Prompt -->
@@ -179,14 +177,27 @@
               </select>
             </div>
 
-            <div class="flex items-center space-x-2 text-xs">
-              <label class="flex items-center space-x-1.5 cursor-pointer bg-slate-800 px-2 py-1 rounded text-slate-300 hover:text-white">
-                <input type="checkbox" id="toggle-overlay-video" checked class="rounded accent-emerald-500" onchange="toggleOverlayMode(this.checked)">
-                <span>Rendered Overlay</span>
+            <!-- Visual Overlay Layer Checkboxes -->
+            <div class="flex flex-wrap items-center gap-1.5 text-xs">
+              <label class="flex items-center space-x-1 cursor-pointer bg-slate-800/80 hover:bg-slate-700 px-2 py-1 rounded text-slate-300 hover:text-white transition" title="Sovrapponi lo scheletro biomeccanico 2D sul video">
+                <input type="checkbox" id="toggle-overlay-skeleton" checked class="rounded accent-emerald-500">
+                <span>🦴 Scheletro 2D</span>
               </label>
-              <label class="flex items-center space-x-1.5 cursor-pointer bg-slate-800 px-2 py-1 rounded text-slate-300 hover:text-white">
+              <label class="flex items-center space-x-1 cursor-pointer bg-slate-800/80 hover:bg-slate-700 px-2 py-1 rounded text-slate-300 hover:text-white transition" title="Sovrapponi la mazza da baseball 2D con grip e sweet spot">
+                <input type="checkbox" id="toggle-overlay-bat" checked class="rounded accent-amber-500">
+                <span>🏏 Mazza 2D</span>
+              </label>
+              <label class="flex items-center space-x-1 cursor-pointer bg-slate-800/80 hover:bg-slate-700 px-2 py-1 rounded text-slate-300 hover:text-white transition" title="Mostra la scia della traiettoria della mazza sul video">
+                <input type="checkbox" id="toggle-overlay-trail" checked class="rounded accent-cyan-500">
+                <span>⚡ Traiettoria</span>
+              </label>
+              <label class="flex items-center space-x-1 cursor-pointer bg-slate-800/80 hover:bg-slate-700 px-2 py-1 rounded text-slate-300 hover:text-white transition">
                 <input type="checkbox" id="toggle-hud" checked class="rounded accent-emerald-500">
                 <span>HUD</span>
+              </label>
+              <label class="flex items-center space-x-1 cursor-pointer bg-slate-800/50 hover:bg-slate-700 px-2 py-1 rounded text-slate-400 hover:text-slate-200 border border-slate-700/60 transition" title="Attiva il video pre-renderizzato generato dal backend (OpenCV)">
+                <input type="checkbox" id="toggle-server-overlay" class="rounded accent-purple-500" onchange="toggleOverlayMode(this.checked)">
+                <span>Video Backend</span>
               </label>
             </div>
           </div>
