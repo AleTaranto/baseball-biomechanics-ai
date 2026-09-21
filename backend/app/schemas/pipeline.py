@@ -30,7 +30,11 @@ class PipelineRunRequest(BaseModel):
     )
     handedness_override: str | None = Field(
         default=None,
-        description="Optional pitcher handedness override: 'RHP' or 'LHP'.",
+        description="Optional handedness override: 'RHB', 'LHB', 'RHP', or 'LHP'.",
+    )
+    batting_stance: str | None = Field(
+        default=None,
+        description="Optional batter stance override: 'RHB' (destro) or 'LHB' (mancino).",
     )
 
 
@@ -73,3 +77,5 @@ class PipelineRunResponse(BaseModel):
     xfactor_angles: list[float] = Field(default_factory=list)
     knee_angles: list[float] = Field(default_factory=list)
     pose_3d_frames: list[dict[str, Any]] = Field(default_factory=list)
+    batter_handedness: str = "RHB"
+    bat_trajectory_3d: list[dict[str, Any]] = Field(default_factory=list)

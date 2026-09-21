@@ -32,7 +32,8 @@ async def execute_pipeline(
             filter_mode=request.filter_mode,
             generate_overlay=request.generate_overlay,
             manual_contact_frame=request.manual_contact_frame,
-            handedness_override=request.handedness_override,
+            handedness_override=request.handedness_override or request.batting_stance,
+            batting_stance=request.batting_stance,
         )
     except Exception as exc:
         raise HTTPException(
@@ -107,6 +108,8 @@ async def execute_pipeline(
         xfactor_angles=result.get("xfactor_angles", []),  # type: ignore[arg-type]
         knee_angles=result.get("knee_angles", []),  # type: ignore[arg-type]
         pose_3d_frames=result.get("pose_3d_frames", []),  # type: ignore[arg-type]
+        batter_handedness=str(result.get("batter_handedness", "RHB")),
+        bat_trajectory_3d=result.get("bat_trajectory_3d", []),  # type: ignore[arg-type]
         overlay_video_url=result.get("overlay_video_url"),  # type: ignore[arg-type]
         source_video_url=result.get("source_video_url"),  # type: ignore[arg-type]
     )

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any, cast
@@ -63,9 +64,10 @@ def run_pipeline(
     generate_overlay: bool = True,
     manual_contact_frame: int | None = None,
     handedness_override: str | None = None,
+    batting_stance: str | None = None,
     use_cache: bool = True,
     force_recompute: bool = False,
-) -> dict[str, Path | str | int | float | None]:
+) -> dict[str, Any]:
     """Run the canonical pipeline with explicit processing-rate controls and profiling hooks."""
     if video_id is None and video_path is None:
         raise ValueError("Provide either a video_id or a video_path.")
@@ -499,8 +501,38 @@ def run_pipeline(
         )
         knee_angls.append(round(ang, 1))
 
+    # Resolve batter stance (RHB vs LHB)
+    resolved_batter_stance = "RHB"
+    stance_cand = (batting_stance or handedness_override or "").upper()
+    if "LH" in stance_cand or stance_cand in ("L", "LEFT"):
+        resolved_batter_stance = "LHB"
+    elif "RH" in stance_cand or stance_cand in ("R", "RIGHT"):
+        resolved_batter_stance = "RHB"
+    else:
+        # Auto-detect from setup frames
+        first_frames = movement.frames[: min(10, len(movement.frames))]
+        lsh_x = [
+            f.joints["left_shoulder"].x
+            for f in first_frames
+            if "left_shoulder" in f.joints and f.joints["left_shoulder"].x is not None
+        ]
+        rsh_x = [
+            f.joints["right_shoulder"].x
+            for f in first_frames
+            if "right_shoulder" in f.joints and f.joints["right_shoulder"].x is not None
+        ]
+        if lsh_x and rsh_x:
+            mean_l = sum(lsh_x) / len(lsh_x)
+            mean_r = sum(rsh_x) / len(rsh_x)
+            resolved_batter_stance = "RHB" if mean_l >= mean_r else "LHB"
+
+    contact_frame_idx = contact_result.contact_frame
+    contact_idx = contact_frame_idx if contact_frame_idx is not None else 25
+
     pose_3d_frames = []
-    for f in movement.frames:
+    bat_trajectory_3d = []
+
+    for idx, f in enumerate(movement.frames):
         frame_joints = {}
         for j_name, j_val in f.joints.items():
             if j_val.x is not None and j_val.y is not None:
@@ -510,9 +542,66 @@ def run_pipeline(
                     "z": round(j_val.z if j_val.z is not None else 0.0, 4),
                     "conf": round(j_val.confidence if j_val.confidence is not None else 1.0, 2),
                 }
-        pose_3d_frames.append(frame_joints)
 
-    contact_frame_idx = contact_result.contact_frame
+        # 3D Bat Reconstruction (Optical Edge Tracking + Kinematic Swing Model)
+        lw = f.joints.get("left_wrist")
+        rw = f.joints.get("right_wrist")
+        wrist_pts = []
+        for j in (lw, rw):
+            if j is not None and j.x is not None and j.y is not None:
+                wrist_pts.append(((j.x - 0.5) * 2.0, (1.0 - j.y) * 1.8, (j.z or 0.0) * -2.0))
+
+        if wrist_pts:
+            hx = sum(p[0] for p in wrist_pts) / len(wrist_pts)
+            hy = sum(p[1] for p in wrist_pts) / len(wrist_pts)
+            hz = sum(p[2] for p in wrist_pts) / len(wrist_pts)
+        else:
+            hx, hy, hz = -0.70, 0.95, 0.0
+
+        det = bat_tracking.detections[idx] if idx < len(bat_tracking.detections) else None
+        if det and det.detected and det.barrel_point:
+            bx_norm, by_norm = det.barrel_point
+            bx = (bx_norm - 0.5) * 2.0
+            by = (1.0 - by_norm) * 1.8
+            d_xy_sq = (bx - hx) ** 2 + (by - hy) ** 2
+            dz_mag = math.sqrt(max(0.0, 0.85**2 - d_xy_sq))
+            z_dir = 1.0 if idx >= contact_idx else -1.0
+            bz = hz + z_dir * dz_mag
+            conf = float(det.confidence or 0.85)
+        else:
+            is_rhb = (resolved_batter_stance == "RHB")
+            prog = (idx - (contact_idx - 14)) / 22.0
+            prog = max(0.0, min(1.25, prog))
+
+            sweep_angle = (1.0 - prog) * (math.pi * 0.55) - (math.pi * 0.15)
+            dir_x = math.cos(sweep_angle) * (0.85 if is_rhb else -0.85)
+            dir_y = (1.0 - prog) * 0.40 - (0.12 if prog > 0.6 else 0.0)
+            dir_z = (prog - 0.55) * 0.65
+            norm = math.hypot(dir_x, math.hypot(dir_y, dir_z)) or 1.0
+            bx = hx + (dir_x / norm) * 0.85
+            by = hy + (dir_y / norm) * 0.85
+            bz = hz + (dir_z / norm) * 0.85
+            conf = 0.70
+
+        sx = hx + 0.75 * (bx - hx)
+        sy = hy + 0.75 * (by - hy)
+        sz = hz + 0.75 * (bz - hz)
+
+        frame_joints["bat"] = {
+            "detected": True,
+            "handle": {"x": round(hx, 4), "y": round(hy, 4), "z": round(hz, 4)},
+            "barrel": {"x": round(bx, 4), "y": round(by, 4), "z": round(bz, 4)},
+            "sweet_spot": {"x": round(sx, 4), "y": round(sy, 4), "z": round(sz, 4)},
+            "confidence": round(conf, 2),
+        }
+        pose_3d_frames.append(frame_joints)
+        bat_trajectory_3d.append({
+            "frame_index": idx,
+            "x": round(bx, 4),
+            "y": round(by, 4),
+            "z": round(bz, 4),
+        })
+
     lead_knee_brace_angle = None
     if contact_frame_idx is not None and 0 <= contact_frame_idx < len(knee_angls):
         lead_knee_brace_angle = knee_angls[contact_frame_idx]
@@ -603,6 +692,8 @@ def run_pipeline(
         "xfactor_angles": xfactor_series,
         "knee_angles": knee_angls,
         "pose_3d_frames": pose_3d_frames,
+        "batter_handedness": resolved_batter_stance,
+        "bat_trajectory_3d": bat_trajectory_3d,
         "overlay_video_url": f"/api/v1/videos/{video_id}/overlay",
         "source_video_url": f"/api/v1/videos/{video_id}/stream",
     }

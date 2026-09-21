@@ -228,3 +228,42 @@ def test_api_benchmark_run_mocked():
         data = response.json()
         assert data["dataset_name"] == "mock_vid"
         assert len(data["runs"]) == 1
+
+
+def test_api_pipeline_run_batting_stance_and_bat_3d():
+    mock_pipeline_res = {
+        "video_id": "mock_vid",
+        "source_fps": 30.0,
+        "processing_fps": 30.0,
+        "processing_mode": "full",
+        "total_frames": 10,
+        "batter_handedness": "LHB",
+        "bat_trajectory_3d": [
+            {"frame_index": 0, "x": 0.2, "y": 1.1, "z": -0.4},
+            {"frame_index": 1, "x": 0.4, "y": 1.0, "z": 0.1},
+        ],
+        "pose_3d_frames": [
+            {
+                "bat": {
+                    "detected": True,
+                    "handle": {"x": 0.1, "y": 0.9, "z": 0.0},
+                    "barrel": {"x": 0.4, "y": 1.0, "z": 0.1},
+                }
+            }
+        ],
+    }
+    with patch("app.api.routes.pipeline.run_pipeline", return_value=mock_pipeline_res) as mock_run:
+        response = client.post(
+            "/api/v1/pipeline/run/mock_vid",
+            json={"batting_stance": "LHB", "processing_mode": "full"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["video_id"] == "mock_vid"
+        assert data["batter_handedness"] == "LHB"
+        assert len(data["bat_trajectory_3d"]) == 2
+        assert "bat" in data["pose_3d_frames"][0]
+        mock_run.assert_called_once()
+        call_kwargs = mock_run.call_args[1]
+        assert call_kwargs["batting_stance"] == "LHB"
+

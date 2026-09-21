@@ -208,6 +208,17 @@
                 <span id="lock-text">Lock to Video</span>
               </button>
               <div class="h-4 w-px bg-slate-700 mx-0.5"></div>
+
+              <!-- Batter Stance Switcher (RHB / LHB) -->
+              <div class="flex items-center gap-0.5 bg-slate-950/80 border border-slate-700 p-0.5 rounded text-[11px]">
+                <button id="btn-stance-rhb" class="px-2 py-0.5 rounded font-semibold bg-emerald-600 text-white transition" onclick="setBatterStance('RHB')">
+                  Destro (RHB)
+                </button>
+                <button id="btn-stance-lhb" class="px-2 py-0.5 rounded font-medium text-slate-400 hover:text-white transition" onclick="setBatterStance('LHB')">
+                  Mancino (LHB)
+                </button>
+              </div>
+              <div class="h-4 w-px bg-slate-700 mx-0.5"></div>
               <span class="text-slate-400 font-medium px-1">Views:</span>
               <button class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition" onclick="setCameraView('top')">
                 Top-Down
@@ -234,11 +245,15 @@
               </label>
               <label class="flex items-center space-x-1 cursor-pointer text-slate-300 hover:text-white">
                 <input type="checkbox" id="toggle-3d-xfactor" checked class="rounded accent-emerald-500" onchange="toggle3DXFactor(this.checked)">
-                <span>X-Factor Planes</span>
+                <span>X-Factor</span>
               </label>
               <label class="flex items-center space-x-1 cursor-pointer text-slate-300 hover:text-white">
                 <input type="checkbox" id="toggle-3d-bat" checked class="rounded accent-amber-500" onchange="toggle3DBat(this.checked)">
                 <span>3D Bat</span>
+              </label>
+              <label class="flex items-center space-x-1 cursor-pointer text-slate-300 hover:text-white">
+                <input type="checkbox" id="toggle-3d-trail" checked class="rounded accent-amber-400" onchange="toggle3DTrail(this.checked)">
+                <span>Bat Trail</span>
               </label>
             </div>
           </div>
@@ -361,6 +376,13 @@
               <option value="two_pass" selected>Strategy F: Two-Pass Motion Energy & Window Pruning</option>
             </select>
           </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Batter Stance / Battitore</label>
+            <select id="select-batter-stance" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200" onchange="setBatterStance(this.value)">
+              <option value="RHB" selected>⚾ Destro (RHB — Right-Handed Batter)</option>
+              <option value="LHB">⚾ Mancino (LHB — Left-Handed Batter)</option>
+            </select>
+          </div>
           <div class="flex gap-2">
             <button id="btn-run-pipeline" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 font-semibold text-white rounded-lg shadow transition text-center" onclick="triggerPipeline()">
               ⚡ Run Analysis
@@ -415,8 +437,11 @@
       <!-- Biomechanical KPI Cards (Batting Mode) -->
       <div id="batting-kpis" class="bg-slate-900 rounded-xl border border-slate-800 p-5 shadow-xl space-y-4">
         <h2 class="text-sm font-bold text-white flex items-center justify-between border-b border-slate-800 pb-2">
-          Postural & Batting Metrics
-          <span class="text-xs font-mono text-emerald-400" id="contact-frame-display">Contact: Frame --</span>
+          <span>Postural & Batting Metrics</span>
+          <div class="flex items-center space-x-2">
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800" id="batter-stance-badge">Stance: RHB</span>
+            <span class="text-xs font-mono text-emerald-400" id="contact-frame-display">Contact: Frame --</span>
+          </div>
         </h2>
 
         <div class="grid grid-cols-2 gap-2.5 text-xs">

@@ -13,12 +13,18 @@ let threeJointMeshes = {};
 let threeBoneLines = [];
 let isThreeInitialized = false;
 let isCameraLocked = false;
+let currentBatterStance = 'RHB';
 let strikeZoneGroup = null;
 let xfactorGroup = null;
-let batMesh = null;
+let batGroup = null;
+let batTrailLine = null;
 let shoulderLine = null;
 let pelvisLine = null;
 let spineLine = null;
+let leftBatterBoxOutline = null;
+let leftBatterBoxFill = null;
+let rightBatterBoxOutline = null;
+let rightBatterBoxFill = null;
 
 // UI Elements
 const video = document.getElementById('video-element');
@@ -250,7 +256,8 @@ async function triggerPipeline() {
       body: JSON.stringify({
         processing_mode: strategy,
         filter_mode: 'filtered',
-        generate_overlay: true
+        generate_overlay: true,
+        batting_stance: currentBatterStance
       })
     });
 
@@ -261,6 +268,11 @@ async function triggerPipeline() {
 
     const data = await res.json();
     pipelineDataA = data;
+
+    // Sync Batter Stance if auto-detected or returned
+    if (data.batter_handedness) {
+      setBatterStance(data.batter_handedness, false);
+    }
 
     // Update video source to generated overlay if requested
     const overlayChecked = document.getElementById('toggle-overlay-video').checked;
@@ -548,8 +560,8 @@ function initThreeJS() {
   const plateBorder = new THREE.Line(plateBorderGeo, new THREE.LineBasicMaterial({ color: 0x0f172a, linewidth: 2 }));
   threeScene.add(plateBorder);
 
-  // 3. Batter's Boxes & Chalk Outlines
-  function createChalkBox(xCenter, zCenter, width, depth) {
+  // 3. Batter's Boxes with Interactive Stance Highlight
+  function createBatterBox(xCenter, zCenter, width, depth) {
     const hw = width / 2;
     const hd = depth / 2;
     const points = [
@@ -560,14 +572,36 @@ function initThreeJS() {
       new THREE.Vector3(xCenter - hw, 0.004, zCenter - hd)
     ];
     const geom = new THREE.BufferGeometry().setFromPoints(points);
-    const mat = new THREE.LineBasicMaterial({ color: 0x94a3b8, linewidth: 1.5, transparent: true, opacity: 0.8 });
-    return new THREE.Line(geom, mat);
+    const outlineMat = new THREE.LineBasicMaterial({ color: 0x94a3b8, linewidth: 2 });
+    const outline = new THREE.Line(geom, outlineMat);
+
+    const planeGeo = new THREE.PlaneGeometry(width, depth);
+    const fillMat = new THREE.MeshBasicMaterial({
+      color: 0x10b981,
+      transparent: true,
+      opacity: 0.08,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    const fill = new THREE.Mesh(planeGeo, fillMat);
+    fill.rotation.x = Math.PI / 2;
+    fill.position.set(xCenter, 0.003, zCenter);
+
+    return { outline, fill };
   }
-  // Right-handed & Left-handed batter's boxes (1.0m x 1.6m)
-  const leftBatterBox = createChalkBox(-0.75, 0.0, 0.9, 1.5);
-  const rightBatterBox = createChalkBox(0.75, 0.0, 0.9, 1.5);
-  threeScene.add(leftBatterBox);
-  threeScene.add(rightBatterBox);
+
+  // Left Box (for RHB batter on 3rd-base side) & Right Box (for LHB batter on 1st-base side)
+  const leftBoxObj = createBatterBox(-0.75, 0.0, 0.9, 1.5);
+  leftBatterBoxOutline = leftBoxObj.outline;
+  leftBatterBoxFill = leftBoxObj.fill;
+  threeScene.add(leftBatterBoxOutline);
+  threeScene.add(leftBatterBoxFill);
+
+  const rightBoxObj = createBatterBox(0.75, 0.0, 0.9, 1.5);
+  rightBatterBoxOutline = rightBoxObj.outline;
+  rightBatterBoxFill = rightBoxObj.fill;
+  threeScene.add(rightBatterBoxOutline);
+  threeScene.add(rightBatterBoxFill);
 
   // 4. Foul Lines
   const foulMat = new THREE.LineBasicMaterial({ color: 0x64748b, transparent: true, opacity: 0.6 });
@@ -603,18 +637,67 @@ function initThreeJS() {
   strikeZoneGroup.add(szWireframe);
   threeScene.add(strikeZoneGroup);
 
-  // 6. Virtual 3D Bat
-  const batGeo = new THREE.CylinderGeometry(0.012, 0.032, 0.85, 16);
-  // Shift pivot point to the handle / knob of the bat
-  batGeo.translate(0, 0.425, 0);
-  const batMat = new THREE.MeshStandardMaterial({
-    color: 0xd97706, // rich wood maple/ash finish
+  // 6. High-Precision Modular 3D Bat
+  batGroup = new THREE.Group();
+
+  // Tapered barrel (length 58cm, top radius 3.3cm, bottom 1.5cm)
+  const barrelGeo = new THREE.CylinderGeometry(0.033, 0.015, 0.58, 20);
+  barrelGeo.translate(0, 0.165, 0);
+  const barrelMat = new THREE.MeshStandardMaterial({
+    color: 0xd97706, // Birch / maple wood finish
     roughness: 0.25,
     metalness: 0.15
   });
-  batMesh = new THREE.Mesh(batGeo, batMat);
-  batMesh.visible = false;
-  threeScene.add(batMesh);
+  const batBarrel = new THREE.Mesh(barrelGeo, barrelMat);
+
+  // Handle / grip (length 25cm, radius 1.5cm to 1.4cm)
+  const handleGeo = new THREE.CylinderGeometry(0.015, 0.014, 0.25, 16);
+  handleGeo.translate(0, -0.25, 0);
+  const handleMat = new THREE.MeshStandardMaterial({
+    color: 0x1e293b, // Dark grip tape
+    roughness: 0.7,
+    metalness: 0.05
+  });
+  const batHandle = new THREE.Mesh(handleGeo, handleMat);
+
+  // Knob (flared disc at handle end)
+  const knobGeo = new THREE.CylinderGeometry(0.024, 0.024, 0.025, 16);
+  knobGeo.translate(0, -0.385, 0);
+  const knobMat = new THREE.MeshStandardMaterial({
+    color: 0xb45309,
+    roughness: 0.3,
+    metalness: 0.2
+  });
+  const batKnob = new THREE.Mesh(knobGeo, knobMat);
+
+  // Glowing Sweet Spot Ring (at ~75% along the bat)
+  const sweetGeo = new THREE.TorusGeometry(0.034, 0.0035, 12, 24);
+  sweetGeo.rotateX(Math.PI / 2);
+  sweetGeo.translate(0, 0.25, 0);
+  const sweetMat = new THREE.MeshBasicMaterial({
+    color: 0x22d3ee,
+    transparent: true,
+    opacity: 0.95
+  });
+  const batSweetSpot = new THREE.Mesh(sweetGeo, sweetMat);
+
+  batGroup.add(batBarrel);
+  batGroup.add(batHandle);
+  batGroup.add(batKnob);
+  batGroup.add(batSweetSpot);
+  batGroup.visible = false;
+  threeScene.add(batGroup);
+
+  // 3D Bat Trajectory Trail Line
+  const trailGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0)]);
+  const trailMat = new THREE.LineBasicMaterial({
+    color: 0xf59e0b,
+    linewidth: 3,
+    transparent: true,
+    opacity: 0.85
+  });
+  batTrailLine = new THREE.Line(trailGeo, trailMat);
+  threeScene.add(batTrailLine);
 
   // 7. X-Factor 3D Vectors & Spine Line
   xfactorGroup = new THREE.Group();
@@ -660,6 +743,9 @@ function initThreeJS() {
     threeBoneLines.push(line);
   });
 
+  // Initial Stance Box Highlighting
+  updateBatterBoxHighlight();
+
   // Animation render loop
   function animate() {
     requestAnimationFrame(animate);
@@ -670,6 +756,62 @@ function initThreeJS() {
 
   window.addEventListener('resize', resizeThreeCanvas);
   isThreeInitialized = true;
+}
+
+function updateBatterBoxHighlight() {
+  if (!leftBatterBoxFill || !rightBatterBoxFill) return;
+  if (currentBatterStance === 'RHB') {
+    leftBatterBoxFill.material.color.setHex(0x10b981);
+    leftBatterBoxFill.material.opacity = 0.20;
+    leftBatterBoxOutline.material.color.setHex(0x34d399);
+    rightBatterBoxFill.material.color.setHex(0x334155);
+    rightBatterBoxFill.material.opacity = 0.04;
+    rightBatterBoxOutline.material.color.setHex(0x475569);
+  } else {
+    rightBatterBoxFill.material.color.setHex(0x06b6d4);
+    rightBatterBoxFill.material.opacity = 0.20;
+    rightBatterBoxOutline.material.color.setHex(0x22d3ee);
+    leftBatterBoxFill.material.color.setHex(0x334155);
+    leftBatterBoxFill.material.opacity = 0.04;
+    leftBatterBoxOutline.material.color.setHex(0x475569);
+  }
+}
+
+function setBatterStance(stance, rerunPipeline = false) {
+  currentBatterStance = stance;
+  const select = document.getElementById('select-batter-stance');
+  if (select && select.value !== stance) select.value = stance;
+
+  const btnRHB = document.getElementById('btn-stance-rhb');
+  const btnLHB = document.getElementById('btn-stance-lhb');
+  if (btnRHB) {
+    btnRHB.className = stance === 'RHB'
+      ? 'px-2 py-0.5 rounded font-semibold bg-emerald-600 text-white transition'
+      : 'px-2 py-0.5 rounded font-medium text-slate-400 hover:text-white transition';
+  }
+  if (btnLHB) {
+    btnLHB.className = stance === 'LHB'
+      ? 'px-2 py-0.5 rounded font-semibold bg-cyan-600 text-white transition'
+      : 'px-2 py-0.5 rounded font-medium text-slate-400 hover:text-white transition';
+  }
+
+  const badge = document.getElementById('batter-stance-badge');
+  if (badge) {
+    badge.innerText = `Stance: ${stance === 'RHB' ? 'Destro (RHB)' : 'Mancino (LHB)'}`;
+    badge.className = stance === 'RHB'
+      ? 'text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800'
+      : 'text-[11px] font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800';
+  }
+
+  updateBatterBoxHighlight();
+
+  // Re-render current frame skeleton and bat in the updated box
+  const curF = parseInt(document.getElementById('three-scrubber')?.value || '0');
+  update3DSkeleton(curF);
+
+  if (rerunPipeline && currentVideoId) {
+    triggerPipeline();
+  }
 }
 
 function resizeThreeCanvas() {
@@ -696,15 +838,20 @@ function update3DSkeleton(frameIndex) {
   const scrubberEl = document.getElementById('three-scrubber');
   if (scrubberEl) scrubberEl.value = frameIndex;
 
-  // Scale and center landmark coordinates
-  // MediaPipe: x in [0,1], y in [0,1] top-to-bottom, z depth
+  // Stance positioning offset
+  // RHB: stands in box at X = -0.75. LHB: stands in box at X = +0.75
+  const isLHB = (currentBatterStance === 'LHB');
+  const targetBoxX = isLHB ? 0.75 : -0.75;
+
+  // Scale and center landmark coordinates into active batter's box
   const coords = {};
   Object.keys(threeJointMeshes).forEach(name => {
     const joint = frame[name];
     const mesh = threeJointMeshes[name];
     if (joint && joint.x != null && joint.y != null) {
       mesh.visible = true;
-      const x = (joint.x - 0.5) * 2.0;
+      const rawX = (joint.x - 0.5) * 2.0;
+      const x = isLHB ? (targetBoxX - rawX) : (targetBoxX + rawX);
       const y = (1.0 - joint.y) * 1.8;
       const z = (joint.z || 0.0) * -2.0;
       mesh.position.set(x, y, z);
@@ -741,33 +888,61 @@ function update3DSkeleton(frameIndex) {
     ? new THREE.Vector3().addVectors(coords.left_elbow, coords.right_elbow).multiplyScalar(0.5)
     : null;
 
-  // 1. Update Virtual 3D Bat
+  // 1. High-Accuracy 3D Bat Tracking & Placement
   const showBat = document.getElementById('toggle-3d-bat')?.checked ?? true;
-  if (batMesh && showBat && wristMid) {
-    batMesh.visible = true;
-    batMesh.position.copy(wristMid);
-
-    // Orient bat: vector from elbow/shoulder center towards wrists extended outward
-    let batDir = new THREE.Vector3();
-    if (elbowMid) {
-      batDir.subVectors(wristMid, elbowMid).normalize();
-    } else if (shoulderMid) {
-      batDir.subVectors(wristMid, shoulderMid).normalize();
-    } else {
-      batDir.set(0.6, -0.4, 0.7).normalize();
+  if (batGroup && showBat) {
+    let pHandle, pBarrel;
+    if (frame.bat && frame.bat.handle && frame.bat.barrel) {
+      const hx = isLHB ? (targetBoxX - frame.bat.handle.x) : (targetBoxX + frame.bat.handle.x);
+      const bx = isLHB ? (targetBoxX - frame.bat.barrel.x) : (targetBoxX + frame.bat.barrel.x);
+      pHandle = new THREE.Vector3(hx, frame.bat.handle.y, frame.bat.handle.z);
+      pBarrel = new THREE.Vector3(bx, frame.bat.barrel.y, frame.bat.barrel.z);
+    } else if (wristMid) {
+      pHandle = wristMid.clone();
+      let batDir = elbowMid ? wristMid.clone().sub(elbowMid).normalize() : new THREE.Vector3(isLHB ? -0.5 : 0.5, 0.4, 0.6).normalize();
+      pBarrel = pHandle.clone().add(batDir.multiplyScalar(0.85));
     }
 
-    // Add downward and forward bat barrel sweep characteristic of baseball swing
-    batDir.x += 0.3;
-    batDir.normalize();
+    if (pHandle && pBarrel) {
+      batGroup.visible = true;
+      // Bat midpoint for position
+      const midBat = new THREE.Vector3().addVectors(pHandle, pBarrel).multiplyScalar(0.5);
+      batGroup.position.copy(midBat);
 
-    const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), batDir);
-    batMesh.quaternion.copy(quat);
-  } else if (batMesh) {
-    batMesh.visible = false;
+      const batVector = new THREE.Vector3().subVectors(pBarrel, pHandle);
+      const batLen = batVector.length() || 0.85;
+      const batDirNorm = batVector.clone().normalize();
+
+      const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), batDirNorm);
+      batGroup.quaternion.copy(quat);
+
+      const scaleRatio = batLen / 0.85;
+      batGroup.scale.set(1, Math.max(0.7, Math.min(1.3, scaleRatio)), 1);
+    } else {
+      batGroup.visible = false;
+    }
+  } else if (batGroup) {
+    batGroup.visible = false;
   }
 
-  // 2. Update X-Factor Vectors & Live Angles
+  // 2. 3D Bat Trajectory Trail
+  const showTrail = document.getElementById('toggle-3d-trail')?.checked ?? true;
+  if (batTrailLine && showTrail && pipelineDataA && pipelineDataA.bat_trajectory_3d && pipelineDataA.bat_trajectory_3d.length > 0) {
+    batTrailLine.visible = true;
+    const trajPts = pipelineDataA.bat_trajectory_3d.slice(0, Math.min(frameIndex + 1, pipelineDataA.bat_trajectory_3d.length)).map(pt => {
+      const px = isLHB ? (targetBoxX - pt.x) : (targetBoxX + pt.x);
+      return new THREE.Vector3(px, pt.y, pt.z);
+    });
+    if (trajPts.length >= 2) {
+      batTrailLine.geometry.setFromPoints(trajPts);
+    } else if (trajPts.length === 1) {
+      batTrailLine.geometry.setFromPoints([trajPts[0], trajPts[0]]);
+    }
+  } else if (batTrailLine) {
+    batTrailLine.visible = false;
+  }
+
+  // 3. Update X-Factor Vectors & Live Angles
   const showXFactor = document.getElementById('toggle-3d-xfactor')?.checked ?? true;
   if (xfactorGroup) {
     xfactorGroup.visible = showXFactor;
@@ -809,10 +984,9 @@ function update3DSkeleton(frameIndex) {
     }
 
     // Live Lead Knee Angle (Lead leg block)
-    // For RH batter: left knee is lead leg; for LH: right knee
-    const kJoint = coords.left_knee || coords.right_knee;
-    const hJoint = coords.left_hip || coords.right_hip;
-    const aJoint = coords.left_ankle || coords.right_ankle;
+    const kJoint = isLHB ? (coords.right_knee || coords.left_knee) : (coords.left_knee || coords.right_knee);
+    const hJoint = isLHB ? (coords.right_hip || coords.left_hip) : (coords.left_hip || coords.right_hip);
+    const aJoint = isLHB ? (coords.right_ankle || coords.left_ankle) : (coords.left_ankle || coords.right_ankle);
     if (kJoint && hJoint && aJoint) {
       const thigh = new THREE.Vector3().subVectors(hJoint, kJoint).normalize();
       const shank = new THREE.Vector3().subVectors(aJoint, kJoint).normalize();
@@ -823,11 +997,11 @@ function update3DSkeleton(frameIndex) {
     }
   }
 
-  // 3. Camera Lock to Video Perspective & Athlete Tracking
+  // 4. Camera Lock to Video Perspective & Athlete Tracking
   if (isCameraLocked && threeCamera && threeControls) {
-    const targetRoot = hipMid || new THREE.Vector3(0, 0.8, 0);
-    // Position camera at exact broadcast / side-on video angle relative to athlete center
-    threeCamera.position.set(targetRoot.x + 0.05, targetRoot.y + 0.35, targetRoot.z + 3.25);
+    const targetRoot = hipMid || new THREE.Vector3(targetBoxX, 0.8, 0);
+    const camXOffset = isLHB ? -0.1 : 0.1;
+    threeCamera.position.set(targetRoot.x + camXOffset, targetRoot.y + 0.35, targetRoot.z + 3.25);
     threeControls.target.copy(targetRoot);
     threeCamera.lookAt(targetRoot.x, targetRoot.y + 0.1, targetRoot.z);
   }
@@ -856,7 +1030,6 @@ function toggleCameraLock() {
     if (text) text.innerText = 'Locked to Video';
     if (threeControls) threeControls.enabled = false;
 
-    // Trigger immediate view lock to current frame athlete position
     const currentFrame = parseInt(document.getElementById('three-scrubber')?.value || '0');
     update3DSkeleton(currentFrame);
   } else {
@@ -878,30 +1051,35 @@ function toggle3DXFactor(show) {
 }
 
 function toggle3DBat(show) {
-  if (batMesh) batMesh.visible = show;
+  if (batGroup) batGroup.visible = show;
+}
+
+function toggle3DTrail(show) {
+  if (batTrailLine) batTrailLine.visible = show;
 }
 
 function setCameraView(preset) {
   if (!threeCamera || !threeControls) return;
-  // If locked, unlocking upon explicit view preset click
   if (isCameraLocked) toggleCameraLock();
 
+  const targetBoxX = (currentBatterStance === 'LHB') ? 0.75 : -0.75;
+
   if (preset === 'top') {
-    // Top-down view (ideal for X-Factor transverse plane angle)
-    threeCamera.position.set(0, 4.2, 0.1);
-    threeControls.target.set(0, 0.8, 0);
+    // Top-down view (transverse plane)
+    threeCamera.position.set(targetBoxX * 0.5, 4.2, 0.1);
+    threeControls.target.set(targetBoxX * 0.5, 0.8, 0);
   } else if (preset === 'front') {
     // Frontal / pitcher's eye view
-    threeCamera.position.set(0, 1.2, 3.2);
-    threeControls.target.set(0, 0.8, 0);
+    threeCamera.position.set(targetBoxX, 1.2, 3.2);
+    threeControls.target.set(targetBoxX, 0.8, 0);
   } else if (preset === 'side') {
-    // Side dugout view (perpendicular to swing path)
+    // Side dugout view
     threeCamera.position.set(3.4, 1.2, 0);
-    threeControls.target.set(0, 0.8, 0);
+    threeControls.target.set(targetBoxX, 0.8, 0);
   } else if (preset === 'behind') {
     // Catcher / Behind plate view
-    threeCamera.position.set(0, 1.2, -3.2);
-    threeControls.target.set(0, 0.8, 0);
+    threeCamera.position.set(targetBoxX, 1.2, -3.2);
+    threeControls.target.set(targetBoxX, 0.8, 0);
   }
   threeControls.update();
 }
@@ -909,16 +1087,19 @@ function setCameraView(preset) {
 function resetCameraView() {
   if (!threeCamera || !threeControls) return;
   if (isCameraLocked) toggleCameraLock();
-  threeCamera.position.set(1.5, 1.6, 3.0);
-  threeControls.target.set(0, 0.8, 0);
+  const targetBoxX = (currentBatterStance === 'LHB') ? 0.75 : -0.75;
+  threeCamera.position.set(targetBoxX + 1.2, 1.6, 3.0);
+  threeControls.target.set(targetBoxX, 0.8, 0);
   threeControls.update();
 }
 
 // Expose globals to window for inline HTML onclick/onchange handlers
+window.setBatterStance = setBatterStance;
 window.toggleCameraLock = toggleCameraLock;
 window.toggleStrikeZone = toggleStrikeZone;
 window.toggle3DXFactor = toggle3DXFactor;
 window.toggle3DBat = toggle3DBat;
+window.toggle3DTrail = toggle3DTrail;
 window.setCameraView = setCameraView;
 window.resetCameraView = resetCameraView;
 window.sync3DFromScrubber = sync3DFromScrubber;
