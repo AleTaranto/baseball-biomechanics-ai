@@ -36,6 +36,14 @@ class PipelineRunRequest(BaseModel):
         default=None,
         description="Optional batter stance override: 'RHB' (destro) or 'LHB' (mancino).",
     )
+    bat_tracking_mode: str = Field(
+        default="hybrid",
+        description="Bat tracking algorithm: 'hybrid', 'color_markers', or 'edges'.",
+    )
+    marker_color_preset: str = Field(
+        default="neon_green_orange",
+        description="HSV color preset: 'neon_green_orange', 'neon_orange_green', or 'yellow_pink'.",
+    )
 
 
 class PipelineRunResponse(BaseModel):
@@ -43,6 +51,8 @@ class PipelineRunResponse(BaseModel):
     source_fps: float | None = None
     processing_fps: float | None = None
     processing_mode: str = "full"
+    bat_tracking_mode: str = "hybrid"
+    marker_color_preset: str = "neon_green_orange"
     total_frames: int = 0
     frames_with_pose: int = 0
     quality_summary_path: str | None = None

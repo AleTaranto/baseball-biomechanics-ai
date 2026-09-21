@@ -13,7 +13,12 @@ BACKEND = ROOT / "backend"
 if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
-from app.services.bat_tracker_service import ShaftEdgeBatTracker
+from app.services.bat_tracker_service import (
+    BaseBatTracker,
+    ColorMarkerBatTracker,
+    HybridBatTracker,
+    ShaftEdgeBatTracker,
+)
 from app.services.batting_metrics_service import BattingMetricsService
 from app.services.contact_detector_service import ContactEventDetector
 from app.services.filtering_service import TemporalFilteringService
@@ -65,6 +70,8 @@ def run_pipeline(
     manual_contact_frame: int | None = None,
     handedness_override: str | None = None,
     batting_stance: str | None = None,
+    bat_tracking_mode: str = "hybrid",
+    marker_color_preset: str = "neon_green_orange",
     use_cache: bool = True,
     force_recompute: bool = False,
 ) -> dict[str, Any]:
@@ -368,11 +375,19 @@ def run_pipeline(
     bat_tracking_dir = ROOT / "sample-data" / "bat-tracking"
     bat_tracking_dir.mkdir(parents=True, exist_ok=True)
     bat_tracking_path = bat_tracking_dir / f"{video_id}.json"
+    bat_tracker_instance: BaseBatTracker
+    if bat_tracking_mode == "color_markers":
+        bat_tracker_instance = ColorMarkerBatTracker(color_preset=marker_color_preset)
+    elif bat_tracking_mode == "edges":
+        bat_tracker_instance = ShaftEdgeBatTracker()
+    else:  # "hybrid"
+        bat_tracker_instance = HybridBatTracker(color_preset=marker_color_preset)
+
     bat_tracking = profiler.profile_stage(
         "bat_tracking",
         frames_processed=len(movement.frames),
         input_fps=source_fps,
-        action=lambda: ShaftEdgeBatTracker().track(
+        action=lambda: bat_tracker_instance.track(
             video_id=str(video_id),
             frames_dir=extracted_frames_dir,
             movement=movement,
@@ -713,6 +728,8 @@ def run_pipeline(
         "pose_3d_frames": pose_3d_frames,
         "batter_handedness": resolved_batter_stance,
         "bat_trajectory_3d": bat_trajectory_3d,
+        "bat_tracking_mode": bat_tracking_mode,
+        "marker_color_preset": marker_color_preset,
         "overlay_video_url": f"/api/v1/videos/{video_id}/overlay",
         "source_video_url": f"/api/v1/videos/{video_id}/stream",
     }

@@ -431,6 +431,39 @@ function renderVideoOverlay(frameIndex) {
           overlayCtx.lineWidth = 1.5;
           overlayCtx.stroke();
         }
+
+        // Color Marker Target Rings (Visual Confirmation of Optical Color Lock)
+        const isColorMarker = !pipelineDataA.bat_tracking_mode || pipelineDataA.bat_tracking_mode === 'color_markers' || pipelineDataA.bat_tracking_mode === 'hybrid';
+        if (isColorMarker) {
+          const preset = pipelineDataA.marker_color_preset || 'neon_green_orange';
+          let barrelCol = '#22c55e'; // Green
+          let handleCol = '#f97316'; // Orange
+          if (preset === 'neon_orange_green') {
+            barrelCol = '#f97316';
+            handleCol = '#22c55e';
+          } else if (preset === 'yellow_pink') {
+            barrelCol = '#eab308';
+            handleCol = '#ec4899';
+          }
+
+          // Knob Marker Ring
+          overlayCtx.beginPath();
+          overlayCtx.arc(hPt.x, hPt.y, rHandle + 5, 0, Math.PI * 2);
+          overlayCtx.strokeStyle = handleCol;
+          overlayCtx.lineWidth = 2;
+          overlayCtx.shadowColor = handleCol;
+          overlayCtx.shadowBlur = 8;
+          overlayCtx.stroke();
+
+          // Barrel Marker Ring
+          overlayCtx.beginPath();
+          overlayCtx.arc(bPt.x, bPt.y, rBarrel + 5, 0, Math.PI * 2);
+          overlayCtx.strokeStyle = barrelCol;
+          overlayCtx.lineWidth = 2;
+          overlayCtx.shadowColor = barrelCol;
+          overlayCtx.shadowBlur = 8;
+          overlayCtx.stroke();
+        }
       }
       overlayCtx.restore();
     }
@@ -592,6 +625,8 @@ async function triggerPipeline() {
   badge.className = 'text-xs font-normal px-2 py-0.5 rounded bg-amber-950 text-amber-400 border border-amber-800 animate-pulse';
 
   const strategy = document.getElementById('select-strategy').value;
+  const batTrackingMode = document.getElementById('select-bat-tracking-mode') ? document.getElementById('select-bat-tracking-mode').value : 'hybrid';
+  const markerPreset = document.getElementById('select-marker-preset') ? document.getElementById('select-marker-preset').value : 'neon_green_orange';
 
   try {
     const res = await fetch(`/api/v1/pipeline/run/${currentVideoId}`, {
@@ -601,7 +636,9 @@ async function triggerPipeline() {
         processing_mode: strategy,
         filter_mode: 'filtered',
         generate_overlay: true,
-        batting_stance: currentBatterStance
+        batting_stance: currentBatterStance,
+        bat_tracking_mode: batTrackingMode,
+        marker_color_preset: markerPreset
       })
     });
 

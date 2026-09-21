@@ -34,6 +34,8 @@ async def execute_pipeline(
             manual_contact_frame=request.manual_contact_frame,
             handedness_override=request.handedness_override or request.batting_stance,
             batting_stance=request.batting_stance,
+            bat_tracking_mode=request.bat_tracking_mode,
+            marker_color_preset=request.marker_color_preset,
         )
     except Exception as exc:
         raise HTTPException(
@@ -60,6 +62,8 @@ async def execute_pipeline(
         source_fps=_to_float(result.get("source_fps")) or 0.0,
         processing_fps=_to_float(result.get("processing_fps")) or 0.0,
         processing_mode=str(result.get("processing_mode", request.processing_mode)),
+        bat_tracking_mode=str(result.get("bat_tracking_mode", request.bat_tracking_mode)),
+        marker_color_preset=str(result.get("marker_color_preset", request.marker_color_preset)),
         total_frames=_to_int(result.get("total_frames")) or 0,
         frames_with_pose=_to_int(result.get("frames_with_pose")) or 0,
         quality_summary_path=(

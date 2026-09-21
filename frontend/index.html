@@ -394,6 +394,22 @@
               <option value="LHB">⚾ Mancino (LHB — Left-Handed Batter)</option>
             </select>
           </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Bat Tracking Method / Metodo Mazza</label>
+            <select id="select-bat-tracking-mode" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200">
+              <option value="hybrid" selected>🎯 Ibrido (Color Marker + Edge Fallback)</option>
+              <option value="color_markers">🟢 Solo Color Marker (Nastro Fluo)</option>
+              <option value="edges">📐 Solo Edge & Gradienti (Standard)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">Color Marker Preset / Colori Nastro</label>
+            <select id="select-marker-preset" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200">
+              <option value="neon_green_orange" selected>🟢 Canna Verde Neon + 🟠 Pomello Arancione</option>
+              <option value="neon_orange_green">🟠 Canna Arancione + 🟢 Pomello Verde</option>
+              <option value="yellow_pink">🟡 Canna Giallo Fluo + 🌸 Pomello Magenta</option>
+            </select>
+          </div>
           <div class="flex gap-2">
             <button id="btn-run-pipeline" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 font-semibold text-white rounded-lg shadow transition text-center" onclick="triggerPipeline()">
               ⚡ Run Analysis
