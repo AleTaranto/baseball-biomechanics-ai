@@ -12,6 +12,7 @@ BACKEND = ROOT / "backend"
 if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
+from app.services.bat_tracker_service import ShaftEdgeBatTracker
 from app.services.batting_metrics_service import BattingMetricsService
 from app.services.filtering_service import TemporalFilteringService
 from app.services.frame_extraction_service import FrameExtractionService
@@ -318,6 +319,21 @@ def run_pipeline(
     )
     batting_metrics_path.write_text(batting_metrics.model_dump_json(indent=2), encoding="utf-8")
 
+    bat_tracking_dir = ROOT / "sample-data" / "bat-tracking"
+    bat_tracking_dir.mkdir(parents=True, exist_ok=True)
+    bat_tracking_path = bat_tracking_dir / f"{video_id}.json"
+    bat_tracking = profiler.profile_stage(
+        "bat_tracking",
+        frames_processed=len(movement.frames),
+        input_fps=source_fps,
+        action=lambda: ShaftEdgeBatTracker().track(
+            video_id=str(video_id),
+            frames_dir=extracted_frames_dir,
+            movement=movement,
+        ),
+    )
+    bat_tracking_path.write_text(bat_tracking.model_dump_json(indent=2), encoding="utf-8")
+
     profiler.write_report(ROOT / "sample-data" / "performance" / f"{video_id}.json")
 
     return {
@@ -330,6 +346,10 @@ def run_pipeline(
         "kinematics_path": kinematics_path,
         "segmentation_path": segmentation_path,
         "batting_metrics_path": batting_metrics_path,
+        "bat_tracking_path": bat_tracking_path,
+        "bat_tracking_coverage": bat_tracking.tracking_coverage,
+        "peak_barrel_speed": bat_tracking.peak_barrel_speed,
+        "attack_angle_at_contact_deg": bat_tracking.attack_angle_at_contact_deg,
         "max_shoulder_hip_separation_deg": batting_metrics.max_shoulder_hip_separation_deg,
         "is_proximal_to_distal": (
             batting_metrics.kinematic_sequence.is_proximal_to_distal
