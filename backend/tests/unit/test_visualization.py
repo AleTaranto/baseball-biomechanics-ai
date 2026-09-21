@@ -403,6 +403,7 @@ def test_render_bat_overlay_and_action_hud() -> None:
         contact_time_seconds=0.165,
         confidence=0.9,
         signals=[ContactSignalEntry(signal_name="mock", estimated_frame=5, confidence=0.9)],
+        consensus_spread_frames=0,
     )
     seg_res = SwingSegmentationResult(
         recording_id="test-rec",
@@ -410,7 +411,7 @@ def test_render_bat_overlay_and_action_hud() -> None:
         total_swings_found=1,
         candidate_swings=[
             SwingWindow(
-                swing_id=1,
+                window_id=1,
                 start_frame=0,
                 end_frame=10,
                 start_time_seconds=0.0,
@@ -442,4 +443,3 @@ def test_render_bat_overlay_and_action_hud() -> None:
         contact_result=contact_res,
     )
     assert np.any(hud_annotated > 0)
-

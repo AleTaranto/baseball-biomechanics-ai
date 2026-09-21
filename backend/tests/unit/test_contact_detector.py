@@ -97,6 +97,8 @@ def test_contact_detector_multimodal_consensus() -> None:
     bat_tracking = BatTrackingResult(
         video_id="video-123",
         peak_barrel_speed_frame=20,
+        tracking_coverage=1.0,
+        attack_angle_at_contact_deg=12.0,
     )
     segmentation = SwingSegmentationResult(
         recording_id="test-rec",
@@ -104,7 +106,7 @@ def test_contact_detector_multimodal_consensus() -> None:
         total_swings_found=1,
         candidate_swings=[
             SwingWindow(
-                swing_id=1,
+                window_id=1,
                 start_frame=10,
                 end_frame=28,
                 start_time_seconds=0.33,
