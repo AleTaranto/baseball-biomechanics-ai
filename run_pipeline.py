@@ -275,25 +275,6 @@ def run_pipeline(
     )
 
     extracted_frames_dir = ROOT / "sample-data" / "frames" / str(video_id)
-    inspection_dir = ROOT / "sample-data" / "kinematic-inspection" / str(video_id)
-    inspection_bundle = None
-    overlay_mode = (
-        "RAW+FILTERED"
-        if filter_mode == "raw_plus_filtered"
-        else ("RAW" if filter_mode == "raw" else "FILTERED")
-    )
-    if generate_overlay:
-        inspection_bundle = profiler.profile_stage(
-            "inspection_bundle_generation",
-            frames_processed=len(movement.frames),
-            action=lambda: InspectionService.generate_inspection_bundle(
-                movement=movement,
-                kinematic=kinematics,
-                extracted_frames_dir=extracted_frames_dir,
-                output_dir=inspection_dir,
-                mode=overlay_mode,
-            ),
-        )
 
     segmentation_dir = ROOT / "sample-data" / "segmentation"
     segmentation_dir.mkdir(parents=True, exist_ok=True)
@@ -353,6 +334,30 @@ def run_pipeline(
         ),
     )
     contact_events_path.write_text(contact_result.model_dump_json(indent=2), encoding="utf-8")
+
+    inspection_dir = ROOT / "sample-data" / "kinematic-inspection" / str(video_id)
+    inspection_bundle = None
+    overlay_mode = (
+        "RAW+FILTERED"
+        if filter_mode == "raw_plus_filtered"
+        else ("RAW" if filter_mode == "raw" else "FILTERED")
+    )
+    if generate_overlay:
+        inspection_bundle = profiler.profile_stage(
+            "inspection_bundle_generation",
+            frames_processed=len(movement.frames),
+            action=lambda: InspectionService.generate_inspection_bundle(
+                movement=movement,
+                kinematic=kinematics,
+                extracted_frames_dir=extracted_frames_dir,
+                output_dir=inspection_dir,
+                mode=overlay_mode,
+                bat_tracking=bat_tracking,
+                segmentation=segmentation,
+                contact_result=contact_result,
+                batting_metrics=batting_metrics,
+            ),
+        )
 
     profiler.write_report(ROOT / "sample-data" / "performance" / f"{video_id}.json")
 

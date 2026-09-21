@@ -12,8 +12,12 @@ from matplotlib import pyplot as plt
 
 matplotlib.use("Agg")
 
+from app.schemas.bat import BatDetection, BatTrackingResult
+from app.schemas.batting import BattingMetricsResult
+from app.schemas.contact import ContactDetectionResult
 from app.schemas.kinematics import AngleMetric, KinematicFrame, KinematicRecording, VelocityMetric
 from app.schemas.movement import FramePose, JointObservation, MovementRecording
+from app.schemas.segmentation import SwingSegmentationResult
 
 ANGLE_LABELS = [
     "left_elbow_angle",
@@ -303,12 +307,154 @@ class InspectionService:
         return image
 
     @staticmethod
+    def render_bat_overlay(
+        image: np.ndarray,
+        bat_detection: BatDetection | None,
+        recent_barrel_pts: list[tuple[int, int]] | None = None,
+        *,
+        width: int,
+        height: int,
+    ) -> np.ndarray:
+        """Render the bat shaft, barrel, sweet spot, and temporal motion trail."""
+        if recent_barrel_pts:
+            # Draw trail connecting recent barrel positions
+            for idx in range(1, len(recent_barrel_pts)):
+                p_prev = recent_barrel_pts[idx - 1]
+                p_curr = recent_barrel_pts[idx]
+                cv2.line(image, p_prev, p_curr, (0, 215, 255), 2, cv2.LINE_AA)
+                cv2.circle(image, p_curr, 3, (0, 215, 255), -1)
+
+        if bat_detection is None or not bat_detection.detected:
+            return image
+
+        p_handle = InspectionService.normalized_to_pixel(
+            bat_detection.handle_point[0] if bat_detection.handle_point else None,
+            bat_detection.handle_point[1] if bat_detection.handle_point else None,
+            width=width,
+            height=height,
+        )
+        p_barrel = InspectionService.normalized_to_pixel(
+            bat_detection.barrel_point[0] if bat_detection.barrel_point else None,
+            bat_detection.barrel_point[1] if bat_detection.barrel_point else None,
+            width=width,
+            height=height,
+        )
+
+        if p_handle is not None and p_barrel is not None:
+            # Bat shaft in vibrant orange
+            cv2.line(image, p_handle, p_barrel, (0, 140, 255), 4, cv2.LINE_AA)
+            # Handle knob
+            cv2.circle(image, p_handle, 5, (255, 255, 255), -1)
+            # Barrel tip
+            cv2.circle(image, p_barrel, 6, (0, 0, 255), -1)
+            cv2.circle(image, p_barrel, 8, (255, 255, 255), 1)
+
+            # Sweet spot
+            if bat_detection.sweet_spot:
+                p_sweet = InspectionService.normalized_to_pixel(
+                    bat_detection.sweet_spot[0],
+                    bat_detection.sweet_spot[1],
+                    width=width,
+                    height=height,
+                )
+                if p_sweet:
+                    cv2.circle(image, p_sweet, 5, (0, 255, 255), -1)
+                    cv2.circle(image, p_sweet, 8, (0, 255, 255), 1)
+
+        return image
+
+    @staticmethod
+    def render_action_hud(
+        image: np.ndarray,
+        frame_index: int,
+        *,
+        width: int,
+        segmentation: SwingSegmentationResult | None = None,
+        contact_result: ContactDetectionResult | None = None,
+        batting_metrics: BattingMetricsResult | None = None,
+    ) -> np.ndarray:
+        """Render real-time HUD with phase badges, contact flash, and X-factor separation."""
+        # 1. Swing phase badge (top right)
+        current_phase = None
+        if segmentation is not None and segmentation.candidate_swings:
+            first_swing = segmentation.candidate_swings[0]
+            for phase in first_swing.phases:
+                if phase.start_frame <= frame_index <= phase.end_frame:
+                    raw_val = getattr(phase.phase, "value", str(phase.phase))
+                    current_phase = str(raw_val).upper()
+                    break
+
+        if current_phase:
+            phase_text = f"PHASE: {current_phase}"
+            (tw, th), _ = cv2.getTextSize(phase_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+            bx = width - tw - 24
+            by = 24
+            cv2.rectangle(image, (bx - 8, by - th - 4), (bx + tw + 8, by + 6), (40, 40, 40), -1)
+            cv2.rectangle(image, (bx - 8, by - th - 4), (bx + tw + 8, by + 6), (0, 255, 128), 1)
+            cv2.putText(
+                image,
+                phase_text,
+                (bx, by),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (0, 255, 128),
+                2,
+                cv2.LINE_AA,
+            )
+
+        # 2. Real-time X-Factor separation
+        if batting_metrics is not None and batting_metrics.frame_metrics:
+            for fm in batting_metrics.frame_metrics:
+                if fm.frame_index == frame_index and fm.shoulder_hip_separation_deg is not None:
+                    sep_text = f"X-Factor: {fm.shoulder_hip_separation_deg:.1f} deg"
+                    cv2.putText(
+                        image,
+                        sep_text,
+                        (12, 64),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.55,
+                        (0, 255, 255),
+                        1,
+                        cv2.LINE_AA,
+                    )
+                    break
+
+        # 3. Contact / Impact flash banner
+        if contact_result is not None:
+            if abs(frame_index - contact_result.contact_frame) <= 1:
+                banner_text = ">> IMPACT / CONTACT <<"
+                (bw, bh), _ = cv2.getTextSize(banner_text, cv2.FONT_HERSHEY_SIMPLEX, 0.85, 2)
+                cx = (width - bw) // 2
+                cy = 40
+                p_r1 = (cx - 12, cy - bh - 6)
+                p_r2 = (cx + bw + 12, cy + 8)
+                cv2.rectangle(image, p_r1, p_r2, (0, 0, 180), -1)
+                cv2.rectangle(image, p_r1, p_r2, (0, 255, 255), 2)
+                cv2.putText(
+                    image,
+                    banner_text,
+                    (cx, cy),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.85,
+                    (255, 255, 255),
+                    2,
+                    cv2.LINE_AA,
+                )
+
+        return image
+
+    @staticmethod
     def render_frame_overlay(
         *,
         image: np.ndarray,
         movement_frame: FramePose,
         kinematic_frame: KinematicFrame | None,
         mode: str = "FILTERED",
+        bat_detection: BatDetection | None = None,
+        recent_barrel_pts: list[tuple[int, int]] | None = None,
+        segmentation: SwingSegmentationResult | None = None,
+        contact_result: ContactDetectionResult | None = None,
+        batting_metrics: BattingMetricsResult | None = None,
     ) -> np.ndarray:
         height, width = image.shape[:2]
         if mode in ("RAW", "RAW+FILTERED"):
@@ -336,7 +482,22 @@ class InspectionService:
             width=width,
             height=height,
         )
+        image = InspectionService.render_bat_overlay(
+            image,
+            bat_detection,
+            recent_barrel_pts=recent_barrel_pts,
+            width=width,
+            height=height,
+        )
         image = InspectionService.render_metadata(image, movement_frame, mode=mode)
+        image = InspectionService.render_action_hud(
+            image,
+            movement_frame.frame_index,
+            width=width,
+            segmentation=segmentation,
+            contact_result=contact_result,
+            batting_metrics=batting_metrics,
+        )
         return image
 
     @staticmethod
@@ -500,6 +661,10 @@ class InspectionService:
         extracted_frames_dir: str | Path,
         output_path: str | Path,
         mode: str = "FILTERED",
+        bat_tracking: BatTrackingResult | None = None,
+        segmentation: SwingSegmentationResult | None = None,
+        contact_result: ContactDetectionResult | None = None,
+        batting_metrics: BattingMetricsResult | None = None,
     ) -> Path:
         frame_dir = Path(extracted_frames_dir)
         target = Path(output_path)
@@ -536,6 +701,13 @@ class InspectionService:
         if not video_writer.isOpened():
             raise RuntimeError(f"Unable to create overlay video at {target}")
 
+        bat_detections_map = (
+            {d.frame_index: d for d in bat_tracking.detections}
+            if bat_tracking is not None
+            else {}
+        )
+        recent_barrel_pts: list[tuple[int, int]] = []
+
         try:
             for frame_file in frame_files:
                 frame_index = int(frame_file.stem.rsplit("_", 1)[-1])
@@ -550,12 +722,33 @@ class InspectionService:
                 image = cv2.imread(str(frame_file), cv2.IMREAD_COLOR)
                 if image is None:
                     continue
+
+                bat_det = bat_detections_map.get(frame_index)
+                if bat_det and bat_det.detected and bat_det.barrel_point:
+                    p_barrel = InspectionService.normalized_to_pixel(
+                        bat_det.barrel_point[0],
+                        bat_det.barrel_point[1],
+                        width=width,
+                        height=height,
+                    )
+                    if p_barrel:
+                        recent_barrel_pts.append(p_barrel)
+                        if len(recent_barrel_pts) > 6:
+                            recent_barrel_pts.pop(0)
+                elif not bat_det or not bat_det.detected:
+                    recent_barrel_pts.clear()
+
                 if movement_frame is not None:
                     image = InspectionService.render_frame_overlay(
                         image=image,
                         movement_frame=movement_frame,
                         kinematic_frame=kinematic_frame,
                         mode=mode,
+                        bat_detection=bat_det,
+                        recent_barrel_pts=list(recent_barrel_pts),
+                        segmentation=segmentation,
+                        contact_result=contact_result,
+                        batting_metrics=batting_metrics,
                     )
                 video_writer.write(image)
         finally:
@@ -570,6 +763,10 @@ class InspectionService:
         extracted_frames_dir: str | Path,
         output_dir: str | Path,
         mode: str = "FILTERED",
+        bat_tracking: BatTrackingResult | None = None,
+        segmentation: SwingSegmentationResult | None = None,
+        contact_result: ContactDetectionResult | None = None,
+        batting_metrics: BattingMetricsResult | None = None,
     ) -> dict[str, Path | str]:
         base_dir = Path(output_dir)
         base_dir.mkdir(parents=True, exist_ok=True)
@@ -580,6 +777,13 @@ class InspectionService:
 
         frame_dir = base_dir / "overlay_frames"
         frame_dir.mkdir(parents=True, exist_ok=True)
+        bat_detections_map = (
+            {d.frame_index: d for d in bat_tracking.detections}
+            if bat_tracking is not None
+            else {}
+        )
+        recent_barrel_pts: list[tuple[int, int]] = []
+
         for frame in sorted(movement.frames, key=lambda item: item.frame_index):
             frame_file = Path(extracted_frames_dir) / f"frame_{frame.frame_index:06d}.png"
             if not frame_file.exists():
@@ -587,6 +791,22 @@ class InspectionService:
             image = cv2.imread(str(frame_file), cv2.IMREAD_COLOR)
             if image is None:
                 continue
+            h, w = image.shape[:2]
+            bat_det = bat_detections_map.get(frame.frame_index)
+            if bat_det and bat_det.detected and bat_det.barrel_point:
+                p_barrel = InspectionService.normalized_to_pixel(
+                    bat_det.barrel_point[0],
+                    bat_det.barrel_point[1],
+                    width=w,
+                    height=h,
+                )
+                if p_barrel:
+                    recent_barrel_pts.append(p_barrel)
+                    if len(recent_barrel_pts) > 6:
+                        recent_barrel_pts.pop(0)
+            elif not bat_det or not bat_det.detected:
+                recent_barrel_pts.clear()
+
             kinematic_frame = next(
                 (item for item in kinematic.frames if item.frame_index == frame.frame_index),
                 None,
@@ -596,6 +816,11 @@ class InspectionService:
                 movement_frame=frame,
                 kinematic_frame=kinematic_frame,
                 mode=mode,
+                bat_detection=bat_det,
+                recent_barrel_pts=list(recent_barrel_pts),
+                segmentation=segmentation,
+                contact_result=contact_result,
+                batting_metrics=batting_metrics,
             )
             cv2.imwrite(str(frame_dir / f"frame_{frame.frame_index:06d}.png"), annotated)
 
@@ -606,6 +831,10 @@ class InspectionService:
             extracted_frames_dir=extracted_frames_dir,
             output_path=overlay_video,
             mode=mode,
+            bat_tracking=bat_tracking,
+            segmentation=segmentation,
+            contact_result=contact_result,
+            batting_metrics=batting_metrics,
         )
 
         angle_path, velocity_path = InspectionService.render_temporal_plots(

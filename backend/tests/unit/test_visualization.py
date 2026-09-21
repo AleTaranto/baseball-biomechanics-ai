@@ -365,3 +365,81 @@ def test_render_frame_overlay_supports_raw_and_filtered_modes() -> None:
         assert annotated.shape == (100, 100, 3)
         # Verify overlay drew something
         assert np.any(annotated > 0)
+
+
+def test_render_bat_overlay_and_action_hud() -> None:
+    from app.schemas.bat import BatDetection
+    from app.schemas.contact import ContactDetectionResult, ContactSignalEntry
+    from app.schemas.segmentation import (
+        SwingPhaseType,
+        SwingSegmentationResult,
+        SwingWindow,
+        TemporalPhase,
+    )
+
+    image = np.zeros((200, 200, 3), dtype=np.uint8)
+    bat_det = BatDetection(
+        frame_index=5,
+        timestamp_seconds=0.165,
+        detected=True,
+        handle_point=(0.4, 0.4),
+        barrel_point=(0.7, 0.2),
+        sweet_spot=(0.625, 0.25),
+    )
+    recent_pts = [(70, 90), (75, 85), (80, 80)]
+
+    bat_annotated = InspectionService.render_bat_overlay(
+        image=image.copy(),
+        bat_detection=bat_det,
+        recent_barrel_pts=recent_pts,
+        width=200,
+        height=200,
+    )
+    assert np.any(bat_annotated > 0)
+
+    contact_res = ContactDetectionResult(
+        video_id="test-vid",
+        contact_frame=5,
+        contact_time_seconds=0.165,
+        confidence=0.9,
+        signals=[ContactSignalEntry(signal_name="mock", estimated_frame=5, confidence=0.9)],
+    )
+    seg_res = SwingSegmentationResult(
+        recording_id="test-rec",
+        swing_detected=True,
+        total_swings_found=1,
+        candidate_swings=[
+            SwingWindow(
+                swing_id=1,
+                start_frame=0,
+                end_frame=10,
+                start_time_seconds=0.0,
+                end_time_seconds=0.33,
+                duration_seconds=0.33,
+                peak_speed_frame=5,
+                peak_speed_time_seconds=0.165,
+                peak_hand_speed=1.8,
+                contact_frame=5,
+                phases=[
+                    TemporalPhase(
+                        phase=SwingPhaseType.DOWNSWING,
+                        start_frame=0,
+                        end_frame=6,
+                        start_time_seconds=0.0,
+                        end_time_seconds=0.2,
+                        duration_seconds=0.2,
+                    )
+                ],
+            )
+        ],
+    )
+
+    hud_annotated = InspectionService.render_action_hud(
+        image=image.copy(),
+        frame_index=5,
+        width=200,
+        segmentation=seg_res,
+        contact_result=contact_res,
+    )
+    assert np.any(hud_annotated > 0)
+
