@@ -14,6 +14,7 @@ if str(BACKEND) not in sys.path:
 
 from app.services.bat_tracker_service import ShaftEdgeBatTracker
 from app.services.batting_metrics_service import BattingMetricsService
+from app.services.contact_detector_service import ContactEventDetector
 from app.services.filtering_service import TemporalFilteringService
 from app.services.frame_extraction_service import FrameExtractionService
 from app.services.inspection_service import InspectionService
@@ -58,6 +59,7 @@ def run_pipeline(
     sampling_interval: int | None = None,
     filter_mode: str = "filtered",
     generate_overlay: bool = True,
+    manual_contact_frame: int | None = None,
     use_cache: bool = True,
     force_recompute: bool = False,
 ) -> dict[str, Path | str | int | float | None]:
@@ -334,6 +336,24 @@ def run_pipeline(
     )
     bat_tracking_path.write_text(bat_tracking.model_dump_json(indent=2), encoding="utf-8")
 
+    contact_events_dir = ROOT / "sample-data" / "contact-events"
+    contact_events_dir.mkdir(parents=True, exist_ok=True)
+    contact_events_path = contact_events_dir / f"{video_id}.json"
+    contact_result = profiler.profile_stage(
+        "contact_event_detection",
+        frames_processed=len(movement.frames),
+        input_fps=source_fps,
+        action=lambda: ContactEventDetector().detect_contact(
+            video_id=str(video_id),
+            movement=movement,
+            bat_tracking=bat_tracking,
+            segmentation=segmentation,
+            kinematic=kinematics,
+            manual_contact_frame=manual_contact_frame,
+        ),
+    )
+    contact_events_path.write_text(contact_result.model_dump_json(indent=2), encoding="utf-8")
+
     profiler.write_report(ROOT / "sample-data" / "performance" / f"{video_id}.json")
 
     return {
@@ -347,6 +367,10 @@ def run_pipeline(
         "segmentation_path": segmentation_path,
         "batting_metrics_path": batting_metrics_path,
         "bat_tracking_path": bat_tracking_path,
+        "contact_events_path": contact_events_path,
+        "contact_frame": contact_result.contact_frame,
+        "contact_confidence": contact_result.confidence,
+        "is_manual_contact_override": contact_result.is_manual_override,
         "bat_tracking_coverage": bat_tracking.tracking_coverage,
         "peak_barrel_speed": bat_tracking.peak_barrel_speed,
         "attack_angle_at_contact_deg": bat_tracking.attack_angle_at_contact_deg,
@@ -420,6 +444,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Force recomputation instead of reusing canonical artifacts.",
     )
+    parser.add_argument(
+        "--manual-contact-frame",
+        type=int,
+        default=None,
+        help="Explicitly override contact/impact frame.",
+    )
     args = parser.parse_args()
 
     if not args.video_id and not args.video_path:
@@ -433,6 +463,7 @@ if __name__ == "__main__":
         sampling_interval=args.sampling_interval,
         filter_mode=args.filter_mode,
         generate_overlay=not args.no_overlay,
+        manual_contact_frame=args.manual_contact_frame,
         use_cache=not args.no_cache,
     )
     print(json.dumps({
