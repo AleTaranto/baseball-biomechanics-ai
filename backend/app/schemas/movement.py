@@ -48,6 +48,24 @@ class JointObservation(BaseModel):
     detected: bool = Field(
         default=True, description="Whether the joint was observed in this frame."
     )
+    raw_x: float | None = Field(
+        default=None, description="Original unfiltered normalized x coordinate."
+    )
+    raw_y: float | None = Field(
+        default=None, description="Original unfiltered normalized y coordinate."
+    )
+    raw_z: float | None = Field(
+        default=None, description="Original unfiltered normalized z coordinate."
+    )
+    filtered: bool = Field(
+        default=False, description="Whether this observation was smoothed by temporal filtering."
+    )
+    interpolated: bool = Field(
+        default=False, description="Whether this observation was reconstructed across a short gap."
+    )
+    outlier: bool = Field(
+        default=False, description="Whether this observation was flagged as a spatial outlier."
+    )
 
 
 class FramePose(BaseModel):
@@ -150,6 +168,10 @@ class MovementRecording(BaseModel):
     )
     quality_summary: PoseSequenceQuality = Field(
         ..., description="Summary of sequence quality after validation."
+    )
+    filter_status: str = Field(
+        default="raw",
+        description="Temporal filter applied to recording: 'raw' or 'filtered'.",
     )
 
     @property
