@@ -33,6 +33,8 @@ class BenchmarkService:
                 mean_pose_confidence=0.0,
                 missing_keypoint_rate=1.0,
                 tracking_failure_rate=1.0,
+                contact_frame_delta=None,
+                contact_time_error_ms=None,
             )
 
         undetected_frames = sum(1 for f in frames if not f.detected)

@@ -63,7 +63,7 @@ def test_two_pass_compute_reduction_savings() -> None:
             end_time_seconds=1.80,
         )
     ]
-    cfg = TwoPassConfig(scan_sampling_interval=4)
+    cfg = TwoPassConfig(scan_sampling_interval=4, window_padding_seconds=0.3)
     result = TwoPassPipelineService.evaluate_savings(
         video_id="video-test-100",
         total_frames=100,

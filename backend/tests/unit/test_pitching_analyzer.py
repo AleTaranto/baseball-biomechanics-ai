@@ -50,7 +50,6 @@ def _create_pitch_frame(
         frame_index=frame_index,
         timestamp_seconds=timestamp,
         joints=joints,
-        all_joints_detected=True,
     )
 
 

@@ -36,7 +36,7 @@ class TwoPassPipelineService:
 
         to detect candidate action windows.
         """
-        cfg = config or TwoPassConfig()
+        cfg = config or TwoPassConfig(scan_sampling_interval=4, window_padding_seconds=0.3)
         frame_files = sorted(
             list(frames_dir.glob("*.png")) + list(frames_dir.glob("*.jpg")),
             key=lambda p: int("".join(filter(str.isdigit, p.stem)) or "0"),
@@ -121,7 +121,7 @@ class TwoPassPipelineService:
         config: TwoPassConfig | None = None,
     ) -> TwoPassResult:
         """Calculate compute reduction of two-pass processing vs naive full-rate evaluation."""
-        cfg = config or TwoPassConfig()
+        cfg = config or TwoPassConfig(scan_sampling_interval=4, window_padding_seconds=0.3)
         pass1_frames = int(math.ceil(total_frames / cfg.scan_sampling_interval))
 
         pass2_unique_frames: set[int] = set()

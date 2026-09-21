@@ -70,6 +70,7 @@ def test_evaluate_accuracy_calculation() -> None:
         contact_frame=10,
         contact_time_seconds=0.333,
         confidence=0.8,
+        consensus_spread_frames=0,
     )
 
     acc = BenchmarkService.evaluate_accuracy(

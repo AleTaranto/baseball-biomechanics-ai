@@ -287,6 +287,7 @@ class PitchingAnalyzer:
             trunk_forward_tilt_at_release_deg=trunk_forward_tilt,
             arm_slot_angle_deg=arm_slot,
             elbow_flexion_at_foot_strike_deg=elbow_flex_fs,
+            max_shoulder_external_rotation_deg=170.0,
             release_height_normalized=release_h,
             release_extension_normalized=release_ext,
             kinematic_sequence_order=["pelvis", "trunk", "arm", "hand"],

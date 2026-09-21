@@ -112,6 +112,7 @@ def test_temporal_filtering_service_preserves_raw_data() -> None:
         assert filt_joint.filtered is True
         assert filt_joint.raw_x == orig_joint.x
         assert filt_joint.raw_y == orig_joint.y
+        assert filt_joint.x is not None and orig_joint.x is not None
         # Values should be smoothed
         assert math.isclose(filt_joint.x, orig_joint.x, abs_tol=0.05)
 
@@ -133,6 +134,7 @@ def test_temporal_filtering_interpolates_short_gap() -> None:
 
     assert j1 is not None and j1.interpolated is True
     assert j2 is not None and j2.interpolated is True
+    assert j1.x is not None and j2.x is not None
     assert 0.10 < j1.x < 0.40
     assert 0.10 < j2.x < 0.40
     assert j1.x < j2.x
@@ -170,5 +172,6 @@ def test_outlier_rejection_flags_impossible_teleportation() -> None:
     j1 = filtered_rec.frames[1].joints["left_wrist"]
     assert j1.raw_x == 0.90
     assert j1.interpolated is True
+    assert j1.x is not None
     # The filtered x coordinate should be close to 0.11, not 0.90
     assert abs(j1.x - 0.11) < 0.05

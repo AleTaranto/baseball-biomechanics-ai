@@ -162,13 +162,14 @@ class ContactEventDetector:
                     and j2
                     and getattr(j1, "detected", True)
                     and getattr(j2, "detected", True)
+                    and j1.x is not None
+                    and j1.y is not None
+                    and j2.x is not None
+                    and j2.y is not None
                 ):
-                    x1, y1 = getattr(j1, "x", None), getattr(j1, "y", None)
-                    x2, y2 = getattr(j2, "x", None), getattr(j2, "y", None)
-                    if None not in (x1, y1, x2, y2):
-                        spd = math.hypot(x2 - x1, y2 - y1) / dt
-                        if spd > max_speed:
-                            max_speed = spd
+                    spd = math.hypot(j2.x - j1.x, j2.y - j1.y) / dt
+                    if spd > max_speed:
+                        max_speed = spd
 
             speeds.append((f_curr.frame_index, max_speed))
 

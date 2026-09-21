@@ -40,7 +40,6 @@ sample-data/batting-metrics/
 sample-data/bat-tracking/
 sample-data/contact/
 sample-data/contact-events/
-sample-data/pitching/
 sample-data/benchmark/
 sample-data/models/
 sample-data/**/*.mp4

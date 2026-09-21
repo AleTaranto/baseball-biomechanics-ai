@@ -131,7 +131,7 @@ def run_pipeline(
                     action_windows=action_windows,
                 )
                 if action_windows:
-                    active_indices = set()
+                    active_indices: set[int] = set()
                     for w in action_windows:
                         active_indices.update(range(w.start_frame, w.end_frame + 1))
                     selected_frames = [

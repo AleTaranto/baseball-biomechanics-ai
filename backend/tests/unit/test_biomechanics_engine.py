@@ -70,7 +70,7 @@ def test_angular_velocity_with_wrapping() -> None:
 def test_trajectory_construction_and_peak_speed() -> None:
     engine = BiomechanicsEngine()
 
-    points = [
+    points: list[tuple[int, float, tuple[float, ...]]] = [
         (0, 0.0, (0.0, 0.0)),
         (1, 0.1, (0.1, 0.0)),  # speed 1.0
         (2, 0.2, (0.4, 0.0)),  # speed 3.0 (peak)
