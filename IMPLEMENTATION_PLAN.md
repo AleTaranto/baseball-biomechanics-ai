@@ -24,21 +24,29 @@
 
 ## Milestone 3 ? Pose Estimation
 
-- integration with an initial model/provider;
-- structured keypoint outputs;
-- result persistence;
-- confidence tracking.
+- define a provider-agnostic pose-estimation interface;
+- integrate an initial model/provider (MediaPipe-based);
+- produce structured keypoint outputs for required joints;
+- persist results in a JSON manifest for each processed video;
+- track detection gaps, confidence, and missing poses without auto-correction.
 
-## Milestone 4 ? Swing Segmentation
+## Milestone 4 ? Movement Data Model and Validation
+
+- define a provider-independent movement recording model;
+- map raw pose output to a standardized temporal representation;
+- validate frame ordering, timestamps, missing joints, low confidence, invalid coordinates, and temporal gaps;
+- emit a quality summary without applying smoothing or interpolation.
+
+## Milestone 5 ? Swing Segmentation
 
 - detection of major swing phases;
 - structured temporal outputs.
 
-## Milestone 5 ? Biomechanical Data Model
+## Milestone 6 ? Biomechanical Data Model
 
 - joints, body segments, angles, velocities, accelerations, and events.
 
-## Milestone 6 ? Biomechanical Metrics Engine
+## Milestone 7 ? Biomechanical Metrics Engine
 
 - geometric, temporal, and kinetic-chain metrics.
 

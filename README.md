@@ -16,16 +16,142 @@ This is not a medical diagnosis system. Instead, the platform aims to provide st
 
 ## Current status
 
-This repository is currently in the bootstrap milestone.
+This repository is currently in the movement-data foundation milestone.
 
-The immediate focus is to establish:
+The project now includes:
 
-- a clean repository structure;
-- a working Python/FastAPI backend;
-- validation via tests, linting, and type checking;
-- containerized local execution;
-- CI automation;
-- solid documentation and planning artifacts.
+- validated video ingestion and metadata persistence;
+- frame extraction from uploaded videos with ordered timestamps and frame indices;
+- provider-agnostic pose estimation with a MediaPipe implementation;
+- a canonical `MovementRecording` model used for downstream motion sequences;
+- validation for missing frames, invalid coordinates, and low-confidence joints;
+- tests, linting, and type checking for the core pipeline;
+- documentation and architecture decisions covering the current boundaries.
+
+At this level, the system is a working local research pipeline for ingesting swing videos and converting them into structured temporal motion data. It is not yet a full biomechanics metrics engine or coaching recommendation system.
+
+## What the project does right now
+
+The current implementation supports a clean sequence:
+
+```text
+video upload
+  -> validation and metadata persistence
+  -> frame extraction
+  -> pose estimation
+  -> canonical MovementRecording
+  -> quality validation
+```
+
+The pipeline is intentionally modular:
+
+- `sample-data/uploads/` stores raw uploaded videos and metadata;
+- `sample-data/frames/<video_id>/` stores extracted frames and manifests;
+- `sample-data/pose-estimation/<video_id>/` stores raw provider output;
+- `sample-data/movement/` stores canonical movement JSON records;
+- downstream analysis can depend only on `MovementRecording`, not on MediaPipe-specific payloads.
+
+## Quick tutorial: how to use the code so far
+
+### 1) Create the environment
+
+```bash
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+```
+
+### 2) Start the backend
+
+```bash
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Then open:
+
+- `http://localhost:8000/health`
+
+### 3) Put your sample video in the upload folder
+
+The project expects videos in the repo-local sample-data area for local testing.
+
+```bash
+mkdir -p sample-data/uploads
+cp /path/to/your-video.mp4 sample-data/uploads/
+```
+
+### 4) Upload the video through the API
+
+Use multipart upload to the video route. Example with `curl`:
+
+```bash
+curl -X POST "http://localhost:8000/videos/upload" \
+  -F "file=@sample-data/uploads/your-video.mp4"
+```
+
+The response returns the persisted video metadata, including the generated `video_id`.
+
+### 5) Extract frames
+
+```bash
+curl "http://localhost:8000/videos/{video_id}/extract-frames"
+```
+
+This writes ordered frames and a manifest to `sample-data/frames/{video_id}/`.
+
+### 6) Run pose estimation
+
+```bash
+curl "http://localhost:8000/videos/{video_id}/estimate-pose"
+```
+
+The raw provider output is saved under `sample-data/pose-estimation/{video_id}/`.
+
+### 7) Build the canonical movement record
+
+The movement layer converts provider output into the canonical movement model. This happens in code via the movement service and produces a `MovementRecording` JSON under:
+
+```text
+sample-data/movement/{video_id}.json
+```
+
+### 8) Inspect the output
+
+Most outputs are plain JSON and can be read directly, for example:
+
+```bash
+python - <<'PY'
+import json
+from pathlib import Path
+p = Path('sample-data/movement/swing1.json')
+obj = json.loads(p.read_text())
+print(obj['recording_id'])
+print(obj['source_video_id'])
+print(obj['duration'])
+print(len(obj['frames']))
+print(obj['quality_summary'])
+PY
+```
+
+### 9) Run validation locally
+
+```bash
+pytest
+ruff check .
+mypy backend
+```
+
+## Repository structure
+
+- `backend/app/services/` — ingestion, frame extraction, pose estimation, and movement mapping logic
+- `backend/app/schemas/` — domain data contracts for videos, frames, pose results, and movement
+- `backend/tests/unit/` — tests for ingestion, extraction, pose estimation, and movement validation
+- `sample-data/uploads/` — raw uploaded video files
+- `sample-data/frames/` — extracted frames and manifests
+- `sample-data/pose-estimation/` — raw pose provider output
+- `sample-data/movement/` — canonical movement records
+- `tasks/` — milestone specifications and execution notes
 
 ## High-level architecture
 

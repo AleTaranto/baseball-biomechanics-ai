@@ -62,3 +62,39 @@
 - Decision: The platform will never produce medical diagnoses or direct treatment guidance.
 - Consequences: Clear product boundaries and safer downstream use from coaches and practitioners.
 - Alternatives considered: direct clinical diagnosis features. These would exceed the project scope and require strict clinical review.
+
+## ADR-008 ? Provider-agnostic pose estimation interface
+
+- Date: 2026-08-21
+- Status: Accepted
+- Context: The first pose model is likely to change as the project matures and new detection approaches are compared.
+- Decision: Define a provider-agnostic `PoseEstimator` interface and keep the concrete implementation separate from the rest of the pipeline.
+- Consequences: The service layer can consume keypoint results without depending on MediaPipe, while model swaps remain isolated and testable.
+- Alternatives considered: hard-coding MediaPipe directly into the pipeline. This would create brittle dependencies and make future experimentation harder.
+
+## ADR-009 ? Standardized movement recording and validation
+
+- Date: 2026-08-21
+- Status: Accepted
+- Context: Raw pose outputs are not directly suitable for downstream biomechanics logic because they mix provider specifics, frame ordering, and varying confidence quality.
+- Decision: Introduce a provider-independent `MovementRecording` model and a validation layer that normalizes pose data into time-ordered joint observations and explicitly reports issues such as missing frames, invalid coordinates, and low confidence.
+- Consequences: Downstream pipeline stages receive a stable temporal representation and can inspect quality before performing any analysis or interpretation.
+- Alternatives considered: passing raw provider output directly downstream. This would couple future phases to a specific estimator and make quality control harder to reason about.
+
+## ADR-010 ? Canonical movement model
+
+- Date: 2026-08-21
+- Status: Accepted
+- Context: The project currently produces both raw provider-specific pose output and a normalized movement record. Without a single source of truth, downstream stages would risk depending on provider-specific artifacts and creating architectural drift.
+- Decision: The `MovementRecording` is the canonical movement model for the system. All downstream movement, kinematic, and biomechanical processing must consume this model instead of directly consuming provider output.
+- Consequences: Downstream modules depend on a provider-independent, stable contract. Raw pose-estimation JSON files remain available for debugging, provenance, and audit but are treated as technical artifacts rather than the system’s domain contract.
+- Alternatives considered: keeping both raw pose output and movement output as equivalent source-of-truth objects. This introduces ambiguity and makes downstream modules harder to reason about and evolve.
+
+## ADR-011 ? Explicit milliseconds for movement time semantics
+
+- Date: 2026-08-21
+- Status: Accepted
+- Context: Time semantics are easy to misread when provider-specific output mixes unit conventions, frame counts, and timestamps. A downstream contract needs a single interpretation of temporal values to avoid accidental mistakes in ordering, duration, and validation logic.
+- Decision: The canonical movement contract uses `timestamp` and `duration` in milliseconds, with every adapter converting provider-native values into a consistent ms scale before the data reaches downstream systems.
+- Consequences: Frame ordering, continuity checks, and duration calculations are deterministic and easier to validate. The system remains explicit about the meaning of time values without requiring additional conversion logic downstream.
+- Alternatives considered: allowing raw provider units to flow directly into the canonical model. This would create ambiguity and make validation harder to reason about.
