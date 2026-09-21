@@ -84,11 +84,31 @@ async def execute_pipeline(
         contact_frame=_to_int(result.get("contact_frame")),
         contact_confidence=_to_float(result.get("contact_confidence")),
         peak_barrel_speed=_to_float(result.get("peak_barrel_speed")),
+        attack_angle_at_contact_deg=_to_float(result.get("attack_angle_at_contact_deg")),
         max_shoulder_hip_separation_deg=_to_float(result.get("max_shoulder_hip_separation_deg")),
+        separation_at_contact_deg=_to_float(result.get("separation_at_contact_deg")),
+        torso_inclination_at_contact_deg=_to_float(result.get("torso_inclination_at_contact_deg")),
+        max_head_drift=_to_float(result.get("max_head_drift")),
+        kinematic_sequence_order=result.get("kinematic_sequence_order", []),  # type: ignore[arg-type]
+        is_proximal_to_distal=result.get("is_proximal_to_distal"),  # type: ignore[arg-type]
+        pelvis_peak_speed=_to_float(result.get("pelvis_peak_speed")),
+        torso_peak_speed=_to_float(result.get("torso_peak_speed")),
+        hands_peak_speed=_to_float(result.get("hands_peak_speed")),
+        hand_path_length=_to_float(result.get("hand_path_length")),
+        lead_knee_brace_angle=_to_float(result.get("lead_knee_brace_angle")),
         stride_length_normalized=_to_float(result.get("stride_length_normalized")),
         arm_slot_angle_deg=_to_float(result.get("arm_slot_angle_deg")),
         compute_reduction_percentage=_to_float(result.get("compute_reduction_percentage")) or 0.0,
         action_windows_count=_to_int(result.get("action_windows_count")) or 0,
+        timestamps=result.get("timestamps", []),  # type: ignore[arg-type]
+        pelvis_angular_velocities=result.get("pelvis_angular_velocities", []),  # type: ignore[arg-type]
+        torso_angular_velocities=result.get("torso_angular_velocities", []),  # type: ignore[arg-type]
+        hand_speeds=result.get("hand_speeds", []),  # type: ignore[arg-type]
+        xfactor_angles=result.get("xfactor_angles", []),  # type: ignore[arg-type]
+        knee_angles=result.get("knee_angles", []),  # type: ignore[arg-type]
+        pose_3d_frames=result.get("pose_3d_frames", []),  # type: ignore[arg-type]
+        overlay_video_url=result.get("overlay_video_url"),  # type: ignore[arg-type]
+        source_video_url=result.get("source_video_url"),  # type: ignore[arg-type]
     )
 
 

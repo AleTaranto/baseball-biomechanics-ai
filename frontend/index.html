@@ -64,9 +64,9 @@
         <div>
           <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
             Baseball Biomechanics AI
-            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800">v0.2.0</span>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800">v0.3.0</span>
           </h1>
-          <p class="text-xs text-slate-400">Computer Vision Biomechanics & 3D Interactive Analysis</p>
+          <p class="text-xs text-slate-400">High-Precision Computer Vision & 3D Movement Analytics</p>
         </div>
       </div>
 
@@ -79,7 +79,7 @@
           Pitching
         </button>
         <button id="tab-3d" class="px-3 py-1.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition flex items-center gap-1" onclick="switchMode('3d')">
-          <span>🌐</span> 3D Skeleton (Three.js)
+          <span>🌐</span> 3D Visualizer (Three.js)
         </button>
         <button id="tab-compare" class="px-3 py-1.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition flex items-center gap-1" onclick="switchMode('compare')">
           <span>👥</span> Side-by-Side
@@ -198,24 +198,66 @@
         <div class="relative bg-slate-950 aspect-video flex items-center justify-center overflow-hidden">
           <div id="three-canvas-container" class="w-full h-full cursor-grab active:cursor-grabbing"></div>
           
-          <!-- Camera Presets Overlay Bar -->
-          <div class="absolute top-3 left-3 flex flex-wrap gap-1.5 bg-slate-900/90 border border-slate-800 p-1.5 rounded-lg backdrop-blur text-xs z-10">
-            <span class="text-slate-400 font-medium px-1 flex items-center">Presets:</span>
-            <button class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition" onclick="setCameraView('top')">
-              Top-Down (X-Factor)
-            </button>
-            <button class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition" onclick="setCameraView('front')">
-              Frontal (Pitcher)
-            </button>
-            <button class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition" onclick="setCameraView('side')">
-              Side (Dugout)
-            </button>
-            <button class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition" onclick="setCameraView('behind')">
-              Behind Plate
-            </button>
-            <button class="px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white transition" onclick="resetCameraView()">
-              Reset 3D
-            </button>
+          <!-- Camera Presets & Lock Toolbar -->
+          <div class="absolute top-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 z-10 pointer-events-none">
+            <!-- Left: View Presets and Camera Lock -->
+            <div class="flex flex-wrap items-center gap-1.5 bg-slate-900/90 border border-slate-800 p-1.5 rounded-lg backdrop-blur text-xs pointer-events-auto">
+              <!-- Camera Lock to Video Perspective -->
+              <button id="btn-camera-lock" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 font-medium transition flex items-center gap-1 border border-slate-700" onclick="toggleCameraLock()">
+                <span id="lock-icon">🔒</span>
+                <span id="lock-text">Lock to Video</span>
+              </button>
+              <div class="h-4 w-px bg-slate-700 mx-0.5"></div>
+              <span class="text-slate-400 font-medium px-1">Views:</span>
+              <button class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition" onclick="setCameraView('top')">
+                Top-Down
+              </button>
+              <button class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition" onclick="setCameraView('front')">
+                Frontal
+              </button>
+              <button class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition" onclick="setCameraView('side')">
+                Side (Dugout)
+              </button>
+              <button class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition" onclick="setCameraView('behind')">
+                Behind Plate
+              </button>
+              <button class="px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white transition" onclick="resetCameraView()">
+                Reset
+              </button>
+            </div>
+
+            <!-- Right: 3D Elements Toggles -->
+            <div class="flex items-center gap-2 bg-slate-900/90 border border-slate-800 px-2.5 py-1.5 rounded-lg backdrop-blur text-xs pointer-events-auto">
+              <label class="flex items-center space-x-1 cursor-pointer text-slate-300 hover:text-white">
+                <input type="checkbox" id="toggle-3d-strikezone" checked class="rounded accent-cyan-500" onchange="toggleStrikeZone(this.checked)">
+                <span>Strike Zone</span>
+              </label>
+              <label class="flex items-center space-x-1 cursor-pointer text-slate-300 hover:text-white">
+                <input type="checkbox" id="toggle-3d-xfactor" checked class="rounded accent-emerald-500" onchange="toggle3DXFactor(this.checked)">
+                <span>X-Factor Planes</span>
+              </label>
+              <label class="flex items-center space-x-1 cursor-pointer text-slate-300 hover:text-white">
+                <input type="checkbox" id="toggle-3d-bat" checked class="rounded accent-amber-500" onchange="toggle3DBat(this.checked)">
+                <span>3D Bat</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Live 3D Angle Overlay HUD -->
+          <div id="three-angle-hud" class="absolute top-16 left-3 bg-slate-900/85 border border-slate-800 p-2.5 rounded-lg backdrop-blur text-xs space-y-1 z-10 pointer-events-none">
+            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Live 3D Orientation</div>
+            <div class="flex justify-between gap-4">
+              <span class="text-slate-400">Live X-Factor:</span>
+              <span id="three-live-xfactor" class="font-mono font-bold text-emerald-400">--°</span>
+            </div>
+            <div class="flex justify-between gap-4">
+              <span class="text-slate-400">Lead Knee Angle:</span>
+              <span id="three-live-knee" class="font-mono font-bold text-cyan-400">--°</span>
+            </div>
+            <div class="flex justify-between gap-4">
+              <span class="text-slate-400">Torso Inclination:</span>
+              <span id="three-live-torso" class="font-mono font-bold text-amber-400">--°</span>
+            </div>
           </div>
 
           <!-- Guidance badge -->
@@ -228,7 +270,7 @@
         <div class="p-4 bg-slate-900 border-t border-slate-800 flex items-center space-x-3">
           <span id="three-time-display" class="text-xs font-mono text-slate-400">Frame 0</span>
           <input type="range" id="three-scrubber" min="0" max="100" value="0" step="1" class="flex-1 slider-thumb h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer" oninput="sync3DFromScrubber(this.value)">
-          <span id="three-frame-badge" class="text-xs font-mono text-emerald-400">3D Synchronized</span>
+          <span id="three-frame-badge" class="text-xs font-mono text-emerald-400">3D Realtime Synchronized</span>
         </div>
       </div>
 
@@ -301,7 +343,7 @@
       </div>
     </section>
 
-    <!-- Right Column: Metrics, Pipeline Controls, Side-by-Side Delta (4 Cols) -->
+    <!-- Right Column: Metrics, Athletic Sequencing, Pipeline Controls (4 Cols) -->
     <aside class="lg:col-span-4 flex flex-col space-y-4">
 
       <!-- Pipeline Execution Card -->
@@ -330,37 +372,101 @@
         </div>
       </div>
 
+      <!-- Athletic Movement & Sequencing Intelligence (New Comprehensive Section) -->
+      <div class="bg-slate-900 rounded-xl border border-slate-800 p-5 shadow-xl space-y-3">
+        <h2 class="text-sm font-bold text-white flex items-center justify-between border-b border-slate-800 pb-2">
+          Kinematic Sequencing & Efficiency
+          <span id="badge-sequence-status" class="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">--</span>
+        </h2>
+        
+        <!-- Waterfall Sequence Order Flow -->
+        <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+          <span class="text-[11px] text-slate-400 block mb-1.5">Rotational Peak Transfer Order:</span>
+          <div class="flex items-center justify-between text-xs font-mono font-bold" id="sequence-order-badges">
+            <span class="px-2 py-1 rounded bg-blue-950 text-blue-400 border border-blue-800">1. Pelvis</span>
+            <span class="text-slate-600">➔</span>
+            <span class="px-2 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">2. Torso</span>
+            <span class="text-slate-600">➔</span>
+            <span class="px-2 py-1 rounded bg-amber-950 text-amber-400 border border-amber-800">3. Hands</span>
+          </div>
+        </div>
+
+        <!-- Rotational Peak Velocities & Gain Ratio -->
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div class="bg-slate-950 p-2 rounded-lg border border-slate-800">
+            <span class="text-[10px] text-slate-400">Pelvis Peak Speed</span>
+            <div class="text-base font-extrabold text-blue-400 font-mono mt-0.5" id="val-pelvis-peak">-- °/s</div>
+          </div>
+          <div class="bg-slate-950 p-2 rounded-lg border border-slate-800">
+            <span class="text-[10px] text-slate-400">Torso Peak Speed</span>
+            <div class="text-base font-extrabold text-emerald-400 font-mono mt-0.5" id="val-torso-peak">-- °/s</div>
+          </div>
+          <div class="bg-slate-950 p-2 rounded-lg border border-slate-800">
+            <span class="text-[10px] text-slate-400">Hands Peak Speed</span>
+            <div class="text-base font-extrabold text-amber-400 font-mono mt-0.5" id="val-hands-peak">-- px/s</div>
+          </div>
+          <div class="bg-slate-950 p-2 rounded-lg border border-slate-800">
+            <span class="text-[10px] text-slate-400">Torso/Pelvis Gain</span>
+            <div class="text-base font-extrabold text-purple-400 font-mono mt-0.5" id="val-gain-ratio">-- x</div>
+          </div>
+        </div>
+      </div>
+
       <!-- Biomechanical KPI Cards (Batting Mode) -->
       <div id="batting-kpis" class="bg-slate-900 rounded-xl border border-slate-800 p-5 shadow-xl space-y-4">
         <h2 class="text-sm font-bold text-white flex items-center justify-between border-b border-slate-800 pb-2">
-          Batting Biomechanics
+          Postural & Batting Metrics
           <span class="text-xs font-mono text-emerald-400" id="contact-frame-display">Contact: Frame --</span>
         </h2>
 
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-2 gap-2.5 text-xs">
           <!-- X-Factor Separation -->
-          <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
-            <span class="text-xs text-slate-400">Max X-Factor</span>
-            <div class="text-xl font-extrabold text-white mt-1" id="val-xfactor">--°</div>
-            <span class="text-[10px] text-emerald-400">Pelvis-Shoulder Stretch</span>
+          <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+            <span class="text-[10px] text-slate-400">Max X-Factor</span>
+            <div class="text-lg font-extrabold text-white mt-0.5" id="val-xfactor">--°</div>
+            <span class="text-[10px] text-emerald-400">Peak Stretch</span>
+          </div>
+          <!-- X-Factor at Contact -->
+          <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+            <span class="text-[10px] text-slate-400">X-Factor @ Contact</span>
+            <div class="text-lg font-extrabold text-cyan-400 mt-0.5" id="val-xfactor-contact">--°</div>
+            <span class="text-[10px] text-slate-400">At Impact</span>
           </div>
           <!-- Bat Speed -->
-          <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
-            <span class="text-xs text-slate-400">Peak Barrel Speed</span>
-            <div class="text-xl font-extrabold text-white mt-1" id="val-barrel-speed">-- px/s</div>
+          <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+            <span class="text-[10px] text-slate-400">Peak Barrel Speed</span>
+            <div class="text-lg font-extrabold text-white mt-0.5" id="val-barrel-speed">-- px/s</div>
             <span class="text-[10px] text-cyan-400">Sweet Spot Velocity</span>
           </div>
           <!-- Vertical Attack Angle -->
-          <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
-            <span class="text-xs text-slate-400">Attack Angle</span>
-            <div class="text-xl font-extrabold text-white mt-1" id="val-attack-angle">--°</div>
-            <span class="text-[10px] text-slate-400">At Contact Impact</span>
+          <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+            <span class="text-[10px] text-slate-400">Vertical Attack Angle</span>
+            <div class="text-lg font-extrabold text-white mt-0.5" id="val-attack-angle">--°</div>
+            <span class="text-[10px] text-slate-400">At Impact</span>
+          </div>
+          <!-- Torso Inclination -->
+          <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+            <span class="text-[10px] text-slate-400">Spine Tilt @ Impact</span>
+            <div class="text-lg font-extrabold text-amber-400 mt-0.5" id="val-torso-tilt">--°</div>
+            <span class="text-[10px] text-slate-400">Posture Angle</span>
+          </div>
+          <!-- Lead Knee Bracing -->
+          <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+            <span class="text-[10px] text-slate-400">Lead Knee Brace</span>
+            <div class="text-lg font-extrabold text-emerald-400 mt-0.5" id="val-lead-knee">--°</div>
+            <span class="text-[10px] text-slate-400">Front Leg Block</span>
           </div>
           <!-- Head Drift -->
-          <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
-            <span class="text-xs text-slate-400">Head Drift</span>
-            <div class="text-xl font-extrabold text-white mt-1" id="val-head-drift">-- m</div>
-            <span class="text-[10px] text-slate-400">Rotational Stability</span>
+          <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+            <span class="text-[10px] text-slate-400">Head Drift</span>
+            <div class="text-lg font-extrabold text-white mt-0.5" id="val-head-drift">-- m</div>
+            <span class="text-[10px] text-slate-400">Gaze Stability</span>
+          </div>
+          <!-- Hand Path Length -->
+          <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+            <span class="text-[10px] text-slate-400">Hand Path Length</span>
+            <div class="text-lg font-extrabold text-white mt-0.5" id="val-hand-path">-- m</div>
+            <span class="text-[10px] text-slate-400">Downswing Arc</span>
           </div>
         </div>
       </div>
@@ -372,24 +478,24 @@
           <span class="text-xs font-mono text-cyan-400" id="release-frame-display">Release: Frame --</span>
         </h2>
 
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-2 gap-3 text-xs">
           <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
-            <span class="text-xs text-slate-400">Pitcher Handedness</span>
+            <span class="text-[10px] text-slate-400">Pitcher Handedness</span>
             <div class="text-xl font-extrabold text-cyan-400 mt-1" id="val-pitch-handedness">--</div>
             <span class="text-[10px] text-slate-400">Auto-detected</span>
           </div>
           <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
-            <span class="text-xs text-slate-400">Arm Slot Angle</span>
+            <span class="text-[10px] text-slate-400">Arm Slot Angle</span>
             <div class="text-xl font-extrabold text-white mt-1" id="val-arm-slot">--°</div>
             <span class="text-[10px] text-amber-400">At Ball Release</span>
           </div>
           <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
-            <span class="text-xs text-slate-400">Stride Length</span>
+            <span class="text-[10px] text-slate-400">Stride Length</span>
             <div class="text-xl font-extrabold text-white mt-1" id="val-stride-len">--</div>
             <span class="text-[10px] text-slate-400">Normalized to Height</span>
           </div>
           <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
-            <span class="text-xs text-slate-400">Lead Knee Angle</span>
+            <span class="text-[10px] text-slate-400">Lead Knee Angle</span>
             <div class="text-xl font-extrabold text-white mt-1" id="val-knee-angle">--°</div>
             <span class="text-[10px] text-emerald-400">Bracing / Foot Plant</span>
           </div>

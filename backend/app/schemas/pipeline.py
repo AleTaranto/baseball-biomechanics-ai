@@ -55,6 +55,17 @@ class PipelineRunResponse(BaseModel):
     arm_slot_angle_deg: float | None = None
     compute_reduction_percentage: float = 0.0
     action_windows_count: int = 0
+    attack_angle_at_contact_deg: float | None = None
+    separation_at_contact_deg: float | None = None
+    torso_inclination_at_contact_deg: float | None = None
+    max_head_drift: float | None = None
+    kinematic_sequence_order: list[str] = Field(default_factory=list)
+    is_proximal_to_distal: bool | None = None
+    pelvis_peak_speed: float | None = None
+    torso_peak_speed: float | None = None
+    hands_peak_speed: float | None = None
+    hand_path_length: float | None = None
+    lead_knee_brace_angle: float | None = None
     timestamps: list[float] = Field(default_factory=list)
     pelvis_angular_velocities: list[float] = Field(default_factory=list)
     torso_angular_velocities: list[float] = Field(default_factory=list)

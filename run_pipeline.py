@@ -512,6 +512,11 @@ def run_pipeline(
                 }
         pose_3d_frames.append(frame_joints)
 
+    contact_frame_idx = contact_result.contact_frame
+    lead_knee_brace_angle = None
+    if contact_frame_idx is not None and 0 <= contact_frame_idx < len(knee_angls):
+        lead_knee_brace_angle = knee_angls[contact_frame_idx]
+
     return {
         "video_id": video_id,
         "source_fps": source_fps,
@@ -526,6 +531,40 @@ def run_pipeline(
         "peak_barrel_speed": bat_tracking.peak_barrel_speed,
         "attack_angle_at_contact_deg": bat_tracking.attack_angle_at_contact_deg,
         "max_shoulder_hip_separation_deg": batting_metrics.max_shoulder_hip_separation_deg,
+        "separation_at_contact_deg": batting_metrics.separation_at_contact_deg,
+        "torso_inclination_at_contact_deg": batting_metrics.torso_inclination_at_contact_deg,
+        "max_head_drift": batting_metrics.max_head_drift_during_swing,
+        "kinematic_sequence_order": (
+            batting_metrics.kinematic_sequence.sequence_order
+            if batting_metrics.kinematic_sequence
+            else []
+        ),
+        "is_proximal_to_distal": (
+            batting_metrics.kinematic_sequence.is_proximal_to_distal
+            if batting_metrics.kinematic_sequence
+            else None
+        ),
+        "pelvis_peak_speed": (
+            batting_metrics.kinematic_sequence.pelvis_peak.peak_speed
+            if batting_metrics.kinematic_sequence and batting_metrics.kinematic_sequence.pelvis_peak
+            else None
+        ),
+        "torso_peak_speed": (
+            batting_metrics.kinematic_sequence.torso_peak.peak_speed
+            if batting_metrics.kinematic_sequence and batting_metrics.kinematic_sequence.torso_peak
+            else None
+        ),
+        "hands_peak_speed": (
+            batting_metrics.kinematic_sequence.hands_peak.peak_speed
+            if batting_metrics.kinematic_sequence and batting_metrics.kinematic_sequence.hands_peak
+            else None
+        ),
+        "hand_path_length": (
+            batting_metrics.hand_path.hand_path_length
+            if batting_metrics.hand_path
+            else None
+        ),
+        "lead_knee_brace_angle": lead_knee_brace_angle,
         "stride_length_normalized": (
             pitching_result.metrics.stride_length_normalized
             if pitching_result.metrics
@@ -534,11 +573,6 @@ def run_pipeline(
         "arm_slot_angle_deg": (
             pitching_result.metrics.arm_slot_angle_deg
             if pitching_result.metrics
-            else None
-        ),
-        "is_proximal_to_distal": (
-            batting_metrics.kinematic_sequence.is_proximal_to_distal
-            if batting_metrics.kinematic_sequence
             else None
         ),
         "swing_detected": segmentation.swing_detected,
