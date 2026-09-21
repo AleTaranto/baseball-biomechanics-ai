@@ -75,6 +75,15 @@ async def execute_pipeline(
         arm_slot_angle_deg=result.get("arm_slot_angle_deg"),  # type: ignore[arg-type]
         compute_reduction_percentage=float(result.get("compute_reduction_percentage") or 0.0),
         action_windows_count=int(result.get("action_windows_count") or 0),
+        timestamps=result.get("timestamps", []),  # type: ignore[arg-type]
+        pelvis_angular_velocities=result.get("pelvis_angular_velocities", []),  # type: ignore[arg-type]
+        torso_angular_velocities=result.get("torso_angular_velocities", []),  # type: ignore[arg-type]
+        hand_speeds=result.get("hand_speeds", []),  # type: ignore[arg-type]
+        xfactor_angles=result.get("xfactor_angles", []),  # type: ignore[arg-type]
+        knee_angles=result.get("knee_angles", []),  # type: ignore[arg-type]
+        pose_3d_frames=result.get("pose_3d_frames", []),  # type: ignore[arg-type]
+        overlay_video_url=result.get("overlay_video_url"),  # type: ignore[arg-type]
+        source_video_url=result.get("source_video_url"),  # type: ignore[arg-type]
     )
 
 

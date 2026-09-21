@@ -78,6 +78,7 @@ def run_pipeline(
     source_fps: float | None = None
     source_resolution: tuple[int, int] | None = None
     profiler = PerformanceProfiler()
+    two_pass_result = None
 
     if video_path is not None:
         source = Path(video_path)
@@ -112,7 +113,6 @@ def run_pipeline(
             else None
         )
         selected_frames = list(frame_manifest.frames)[::sampling_interval_value]
-        two_pass_result = None
         if processing_mode == "two_pass":
             extracted_dir = ROOT / "sample-data" / "frames" / str(video_id)
             if extracted_dir.exists():
@@ -131,11 +131,11 @@ def run_pipeline(
                     action_windows=action_windows,
                 )
                 if action_windows:
-                    active_indices: set[int] = set()
+                    active_indices_set: set[int] = set()
                     for w in action_windows:
-                        active_indices.update(range(w.start_frame, w.end_frame + 1))
+                        active_indices_set.update(range(w.start_frame, w.end_frame + 1))
                     selected_frames = [
-                        f for f in frame_manifest.frames if f.frame_index in active_indices
+                        f for f in frame_manifest.frames if f.frame_index in active_indices_set
                     ]
 
         profiler.report["source_fps"] = source_fps
@@ -164,11 +164,19 @@ def run_pipeline(
     else:
         if video_id is None:
             raise ValueError("A video_id is required when processing an existing manifest.")
-        frame_manifest = profiler.profile_stage(
-            "video_metadata_inspection",
-            frames_processed=0,
-            action=lambda: FrameExtractionService().load_manifest(video_id),
-        )
+        fe = FrameExtractionService()
+        try:
+            frame_manifest = profiler.profile_stage(
+                "video_metadata_inspection",
+                frames_processed=0,
+                action=lambda: fe.load_manifest(video_id),
+            )
+        except Exception:
+            frame_manifest = profiler.profile_stage(
+                "video_metadata_and_extraction",
+                frames_processed=0,
+                action=lambda: fe.extract_frames(video_id),
+            )
         source_fps = frame_manifest.fps
         source_resolution = (
             (frame_manifest.width, frame_manifest.height)
@@ -176,6 +184,30 @@ def run_pipeline(
             else None
         )
         selected_frames = list(frame_manifest.frames)[::sampling_interval_value]
+        if processing_mode == "two_pass":
+            extracted_dir = ROOT / "sample-data" / "frames" / str(video_id)
+            if extracted_dir.exists():
+                action_windows = profiler.profile_stage(
+                    "two_pass_coarse_scan",
+                    frames_processed=len(frame_manifest.frames),
+                    input_fps=source_fps,
+                    action=lambda: TwoPassPipelineService.scan_video_for_action_windows(
+                        frames_dir=extracted_dir,
+                        fps=source_fps or 30.0,
+                    ),
+                )
+                two_pass_result = TwoPassPipelineService.evaluate_savings(
+                    video_id=str(video_id),
+                    total_frames=len(frame_manifest.frames),
+                    action_windows=action_windows,
+                )
+                if action_windows:
+                    active_indices_set = set()
+                    for w in action_windows:
+                        active_indices_set.update(range(w.start_frame, w.end_frame + 1))
+                    selected_frames = [
+                        f for f in frame_manifest.frames if f.frame_index in active_indices_set
+                    ]
         if use_cache:
             pose_path = (
                 Path(__file__).resolve().parent
@@ -409,23 +441,88 @@ def run_pipeline(
 
     profiler.write_report(ROOT / "sample-data" / "performance" / f"{video_id}.json")
 
+    # Build kinematic time-series for frontend charts and visualizer
+    timestamps = [round(f.timestamp_seconds, 4) for f in kinematics.frames]
+    xfactor_series = [
+        round(rf.shoulder_hip_separation_deg or 0.0, 1)
+        for rf in batting_metrics.frame_metrics
+    ]
+
+    pelvis_vels: list[float] = []
+    torso_vels: list[float] = []
+    for i in range(len(batting_metrics.frame_metrics)):
+        if i == 0:
+            pelvis_vels.append(0.0)
+            torso_vels.append(0.0)
+        else:
+            dt = max(
+                0.001,
+                batting_metrics.frame_metrics[i].timestamp_seconds
+                - batting_metrics.frame_metrics[i - 1].timestamp_seconds,
+            )
+            prev_hip = batting_metrics.frame_metrics[i - 1].hip_angle_deg or 0.0
+            curr_hip = batting_metrics.frame_metrics[i].hip_angle_deg or 0.0
+            prev_sh = batting_metrics.frame_metrics[i - 1].shoulder_angle_deg or 0.0
+            curr_sh = batting_metrics.frame_metrics[i].shoulder_angle_deg or 0.0
+            pelvis_vels.append(round(abs(curr_hip - prev_hip) / dt, 1))
+            torso_vels.append(round(abs(curr_sh - prev_sh) / dt, 1))
+
+    hand_vels: list[float] = []
+    knee_angls: list[float] = []
+    for kf in kinematics.frames:
+        lw = kf.linear_velocities.get("left_wrist")
+        rw = kf.linear_velocities.get("right_wrist")
+        spd = max(
+            (
+                lw.value_normalized_units_per_second
+                if lw and lw.valid and lw.value_normalized_units_per_second is not None
+                else 0.0
+            ),
+            (
+                rw.value_normalized_units_per_second
+                if rw and rw.valid and rw.value_normalized_units_per_second is not None
+                else 0.0
+            ),
+        )
+        hand_vels.append(round(spd * 1000.0, 1))
+
+        lk = kf.joint_angles.get("left_knee")
+        rk = kf.joint_angles.get("right_knee")
+        ang = (
+            lk.value_degrees
+            if lk and lk.valid and lk.value_degrees is not None
+            else (
+                rk.value_degrees
+                if rk and rk.valid and rk.value_degrees is not None
+                else 145.0
+            )
+        )
+        knee_angls.append(round(ang, 1))
+
+    pose_3d_frames = []
+    for f in movement.frames:
+        frame_joints = {}
+        for j_name, j_val in f.joints.items():
+            if j_val.x is not None and j_val.y is not None:
+                frame_joints[j_name] = {
+                    "x": round(j_val.x, 4),
+                    "y": round(j_val.y, 4),
+                    "z": round(j_val.z if j_val.z is not None else 0.0, 4),
+                    "conf": round(j_val.confidence if j_val.confidence is not None else 1.0, 2),
+                }
+        pose_3d_frames.append(frame_joints)
+
     return {
         "video_id": video_id,
         "source_fps": source_fps,
         "processing_fps": effective_fps,
         "frame_sampling_interval": sampling_interval_value,
-        "source_resolution": source_resolution,
         "movement_path": movement_path,
         "kinematics_path": kinematics_path,
-        "segmentation_path": segmentation_path,
         "batting_metrics_path": batting_metrics_path,
         "pitching_result_path": pitching_result_path,
-        "bat_tracking_path": bat_tracking_path,
-        "contact_events_path": contact_events_path,
         "contact_frame": contact_result.contact_frame,
         "contact_confidence": contact_result.confidence,
-        "is_manual_contact_override": contact_result.is_manual_override,
-        "bat_tracking_coverage": bat_tracking.tracking_coverage,
         "peak_barrel_speed": bat_tracking.peak_barrel_speed,
         "attack_angle_at_contact_deg": bat_tracking.attack_angle_at_contact_deg,
         "max_shoulder_hip_separation_deg": batting_metrics.max_shoulder_hip_separation_deg,
@@ -465,6 +562,15 @@ def run_pipeline(
             else 0
         ),
         "filter_mode": filter_mode,
+        "timestamps": timestamps,
+        "pelvis_angular_velocities": pelvis_vels,
+        "torso_angular_velocities": torso_vels,
+        "hand_speeds": hand_vels,
+        "xfactor_angles": xfactor_series,
+        "knee_angles": knee_angls,
+        "pose_3d_frames": pose_3d_frames,
+        "overlay_video_url": f"/api/v1/videos/{video_id}/overlay",
+        "source_video_url": f"/api/v1/videos/{video_id}/stream",
     }
 
 

@@ -45,6 +45,14 @@ class FrameExtractionService:
         if matches:
             return matches[0], matches[0].name
 
+        sample_matches = [
+            candidate
+            for candidate in (self.root_dir / "sample-data").glob(f"{video_id}.*")
+            if candidate.suffix.lower() in ALLOWED_VIDEO_EXTENSIONS
+        ]
+        if sample_matches:
+            return sample_matches[0], sample_matches[0].name
+
         raise ValueError(f"No stored video was found for id '{video_id}'.")
 
     def load_manifest(self, video_id: str) -> FrameExtractionResponse:
