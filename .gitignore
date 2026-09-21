@@ -27,6 +27,14 @@ dist/
 
 # Uploaded media and sample data
 sample-data/uploads/
+sample-data/frames/
+sample-data/kinematics/
+sample-data/movement/
+sample-data/pose-estimation/
+sample-data/pose-quality/
+sample-data/performance/
+sample-data/kinematic-inspection/
+sample-data/models/
 sample-data/**/*.mp4
 sample-data/**/*.mov
 sample-data/**/*.avi

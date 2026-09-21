@@ -1,0 +1,734 @@
+# Baseball Biomechanics Analysis Platform
+
+## Goal
+
+Build a computer-vision pipeline for **baseball biomechanics analysis**.
+
+Phase 1:
+
+* analyze baseball batting swings.
+
+Future phases:
+
+* analyze pitchers and pitching mechanics;
+* reuse the same video, pose, tracking, temporal-analysis and visualization infrastructure.
+
+The architecture must therefore be **sport-action agnostic at the core**.
+
+---
+
+# 1. Core architecture
+
+```text
+Video
+ ↓
+VideoDecoder
+ ↓
+PersonDetection
+ ↓
+PersonTracking
+ ↓
+PoseEstimation
+ ↓
+TemporalTracking / Filtering
+ ↓
+Motion Segmentation
+ ↓
+Action Analyzer
+ ├── BattingAnalyzer
+ └── PitchingAnalyzer (future)
+ ↓
+Biomechanical Metrics
+ ↓
+Visualization / UI
+```
+
+The core pipeline must not contain assumptions specific to batting.
+
+Sport/action-specific logic belongs inside analyzers.
+
+---
+
+# 2. Video ingestion
+
+Support:
+
+* 1080p / 120 FPS;
+* other resolutions/FPS;
+* preservation of original FPS/resolution whenever possible.
+
+Use FFmpeg for:
+
+* cutting;
+* decoding;
+* format conversion only when required.
+
+Validate:
+
+* frame count;
+* FPS;
+* resolution;
+* timestamps;
+* frame ordering.
+
+---
+
+# 3. Pose estimation
+
+Extract per-frame:
+
+```text
+frame_id
+timestamp
+keypoints[]
+confidence[]
+```
+
+Track relevant body landmarks.
+
+The pose layer must be reusable for both:
+
+```text
+Batting
+Pitching
+```
+
+Do not hard-code batting-specific keypoints or calculations into the pose module.
+
+---
+
+# 4. Person tracking
+
+Avoid expensive full-person detection on every frame when possible.
+
+Preferred architecture:
+
+```text
+initial detection
+→ tracking
+→ periodic re-detection
+→ tracking
+```
+
+Possible tracking methods can be benchmarked independently.
+
+Requirements:
+
+* stable identity;
+* recovery after temporary occlusion;
+* confidence monitoring;
+* minimal computational overhead.
+
+---
+
+# 5. Temporal stabilization
+
+Current known issue:
+
+* keypoints can drift/jitter relative to the real body position.
+
+Implement:
+
+* confidence-aware filtering;
+* temporal smoothing;
+* outlier rejection;
+* interpolation of short gaps;
+* optional Kalman / EMA / One-Euro filtering.
+
+Preserve rapid baseball movements:
+
+* do not oversmooth;
+* avoid phase shifts;
+* avoid artificial trajectory distortion.
+
+Debug modes:
+
+```text
+RAW
+FILTERED
+RAW + FILTERED
+TRAJECTORY
+CONFIDENCE
+```
+
+---
+
+# 6. Motion segmentation
+
+Create a generic layer that identifies periods of meaningful athletic movement.
+
+Example:
+
+```text
+video
+→ player tracking
+→ movement detection
+→ candidate action windows
+→ action-specific analyzer
+```
+
+This layer must work for both batting and pitching.
+
+Examples:
+
+```text
+Batting:
+setup → swing → follow-through
+
+Pitching:
+set/leg lift → delivery → release → follow-through
+```
+
+Exact phase definitions belong to the corresponding analyzer.
+
+---
+
+# 7. Batting Analyzer — Phase 1
+
+Primary initial feature.
+
+Detect and analyze baseball swings.
+
+Potential phases:
+
+```text
+stance/setup
+load
+takeaway
+backswing
+transition
+downswing
+contact/impact
+follow-through
+```
+
+Do not require perfect phase classification initially.
+
+First priority:
+
+* correctly identify the swing window;
+* identify contact/impact;
+* obtain stable body trajectories.
+
+---
+
+# 8. Batting biomechanics
+
+Calculate from tracked body landmarks:
+
+### Lower body
+
+* hip position;
+* hip rotation;
+* pelvis movement;
+* lead/trail leg movement;
+* weight-shift proxies.
+
+### Upper body
+
+* shoulder rotation;
+* torso rotation;
+* shoulder/hip separation;
+* torso inclination;
+* head movement.
+
+### Arms/hands
+
+* elbow angles;
+* wrist/hand positions;
+* hand path;
+* bat-side arm movement.
+
+### Temporal sequencing
+
+Analyze relative timing of:
+
+```text
+hips
+→ pelvis
+→ torso
+→ shoulders
+→ arms/hands
+→ bat
+```
+
+Avoid hard-coding conclusions about what constitutes a "good" swing.
+
+The system should initially provide measurements and trajectories, leaving interpretation to a later analysis layer.
+
+---
+
+# 9. Bat tracking
+
+Separate module:
+
+```text
+BatTracker
+```
+
+Potential approaches:
+
+* object detection;
+* segmentation;
+* shaft detection;
+* optical flow;
+* temporal tracking.
+
+Extract when possible:
+
+```text
+bat position
+shaft orientation
+club/bat trajectory
+bat speed proxy
+contact frame
+```
+
+Bat tracking must remain independent from body pose estimation.
+
+---
+
+# 10. Contact / impact detection
+
+Develop a dedicated event detector.
+
+Possible signals:
+
+```text
+bat trajectory
+ball trajectory
+hand trajectory
+sudden motion changes
+visual contact
+```
+
+Initially support manual confirmation of contact frame.
+
+Later automate it.
+
+Accuracy of contact timing is particularly important because many downstream biomechanical measurements depend on it.
+
+---
+
+# 11. Pitching Analyzer — Future
+
+The core infrastructure should support a future:
+
+```text
+PitchingAnalyzer
+```
+
+without rewriting the pipeline.
+
+Potential phases:
+
+```text
+setup
+leg lift
+early movement
+stride
+arm cocking
+acceleration
+ball release
+deceleration
+follow-through
+```
+
+Potential metrics:
+
+### Lower body
+
+* stride length;
+* pelvis movement;
+* lead-leg mechanics;
+* lower-body sequencing.
+
+### Trunk
+
+* trunk rotation;
+* trunk tilt;
+* pelvis/shoulder separation;
+* timing.
+
+### Throwing arm
+
+* shoulder/elbow angles;
+* arm slot;
+* elbow position;
+* forearm orientation;
+* release position.
+
+### Timing
+
+Analyze sequencing between:
+
+```text
+lower body
+→ pelvis
+→ trunk
+→ shoulder
+→ elbow
+→ hand
+→ release
+```
+
+Pitching-specific calculations must stay inside `PitchingAnalyzer`.
+
+---
+
+# 12. Generic biomechanics engine
+
+Create reusable primitives:
+
+```text
+JointAngle
+Distance
+Velocity
+Acceleration
+AngularVelocity
+Trajectory
+RelativePosition
+BodyOrientation
+SegmentAngle
+EventTiming
+PhaseDuration
+```
+
+These primitives should not know whether the movement is batting or pitching.
+
+Example:
+
+```text
+BiomechanicsEngine
+    ├── joint_angle()
+    ├── velocity()
+    ├── acceleration()
+    ├── angular_velocity()
+    ├── trajectory()
+    └── event_timing()
+```
+
+Then:
+
+```text
+BattingAnalyzer
+    → uses BiomechanicsEngine
+
+PitchingAnalyzer
+    → uses BiomechanicsEngine
+```
+
+---
+
+# 13. Visualization
+
+Create a generic visualization system supporting action-specific overlays.
+
+Common:
+
+```text
+skeleton
+keypoints
+confidence
+trajectories
+frame number
+timestamp
+FPS
+processing time
+```
+
+Batting-specific:
+
+```text
+bat trajectory
+contact frame
+swing phase
+hand path
+hip/shoulder rotation
+```
+
+Future pitching-specific:
+
+```text
+stride
+arm path
+release point
+pitching phase
+```
+
+---
+
+# 14. Performance optimization
+
+First create a baseline and profile every stage:
+
+```text
+decode
+preprocessing
+detection
+tracking
+pose inference
+filtering
+motion segmentation
+action analysis
+bat tracking
+rendering
+I/O
+```
+
+Record:
+
+```text
+processing FPS
+video/processing speed ratio
+CPU %
+GPU %
+VRAM
+memory
+per-stage latency
+```
+
+---
+
+# 15. Performance strategies to benchmark
+
+### A — Full pose inference
+
+```text
+120 FPS → pose model → every frame
+```
+
+Baseline.
+
+### B — Detection + tracking
+
+```text
+periodic detection
++
+tracking between detections
+```
+
+### C — ROI pose estimation
+
+```text
+player detection
+→ dynamic player crop
+→ pose estimation
+```
+
+### D — Temporal pose reuse
+
+```text
+pose every N frames
+→ tracking/interpolation between poses
+```
+
+### E — Adaptive inference
+
+```text
+cheap tracking
+→ detect increased motion/error
+→ temporarily increase inference frequency
+```
+
+### F — Two-pass architecture
+
+```text
+PASS 1
+cheap full-video scan
+→ locate candidate swings
+
+PASS 2
+high-quality 120 FPS analysis
+→ only relevant windows
+```
+
+This is particularly useful for long videos containing multiple swings.
+
+---
+
+# 16. Benchmark dataset
+
+Create a small fixed benchmark set containing:
+
+### Batting
+
+* single swing;
+* multiple swings;
+* high-speed swing;
+* different camera distances;
+* different camera angles;
+* partial occlusion;
+* different lighting/backgrounds;
+* left-handed and right-handed batters if supported.
+
+### Future pitching
+
+Reserve the dataset structure for:
+
+* windups;
+* deliveries;
+* different camera angles;
+* different pitcher body types.
+
+Every performance change must be tested against the same benchmark.
+
+---
+
+# 17. Accuracy tests
+
+Create manually annotated ground truth for a subset of frames.
+
+Measure:
+
+```text
+keypoint positional error
+tracking failure rate
+missing-keypoint rate
+swing detection error
+contact-frame error
+phase detection error
+trajectory error
+```
+
+For pitching later:
+
+```text
+release-frame error
+release-position error
+phase timing error
+```
+
+---
+
+# 18. Architecture requirements
+
+Recommended structure:
+
+```text
+core/
+    video/
+    detection/
+    tracking/
+    pose/
+    filtering/
+    motion/
+    biomechanics/
+    visualization/
+
+actions/
+    batting/
+        swing_detector
+        phase_detector
+        bat_tracker
+        batting_metrics
+
+    pitching/
+        pitch_detector
+        phase_detector
+        arm_tracker
+        pitching_metrics
+
+benchmarks/
+tests/
+```
+
+The `core/` layer must never depend on `batting/` or `pitching/`.
+
+---
+
+# 19. Development priority
+
+## P0 — Foundation
+
+1. reliable video decoding;
+2. preserve 1080p/120 FPS;
+3. pose extraction;
+4. raw overlay;
+5. fix keypoint drift/jitter;
+6. temporal tracking/filtering.
+
+## P1 — Batting
+
+7. swing detection;
+8. contact detection;
+9. batting phases;
+10. batting biomechanical metrics;
+11. bat tracking.
+
+## P2 — Performance
+
+12. profile pipeline;
+13. GPU acceleration;
+14. ROI;
+15. tracking vs detection optimization;
+16. batching;
+17. asynchronous pipeline;
+18. model benchmarking.
+
+## P3 — Platform
+
+19. generic biomechanics engine;
+20. action-independent visualization;
+21. reusable event/phase framework;
+22. standardized data format.
+
+## P4 — Pitching
+
+23. PitchingAnalyzer;
+24. pitch phase detection;
+25. release detection;
+26. pitching biomechanics;
+27. pitching-specific visualization.
+
+---
+
+# 20. Engineering rules
+
+1. **Profile before optimizing.**
+2. Change one performance variable at a time.
+3. Benchmark speed AND accuracy after every optimization.
+4. Keep raw data available for debugging.
+5. Never permanently discard original keypoints.
+6. Keep action-specific logic outside the core pipeline.
+7. Avoid hard-coded assumptions about player handedness, camera angle or body proportions.
+8. Prefer configurable modules over duplicated implementations.
+9. Maintain a fixed benchmark dataset.
+10. Optimize for **accurate analysis first, throughput second**.
+
+---
+
+# Final architecture
+
+```text
+                    VIDEO
+                      │
+                VideoDecoder
+                      │
+              PersonDetection
+                      │
+               PersonTracking
+                      │
+                PoseEstimator
+                      │
+             TemporalFiltering
+                      │
+              MotionSegmentation
+                      │
+              ┌───────┴────────┐
+              │                │
+        BattingAnalyzer   PitchingAnalyzer
+          (Phase 1)          (Future)
+              │                │
+              └───────┬────────┘
+                      │
+             BiomechanicsEngine
+                      │
+              Event / Metrics
+                      │
+              Visualization/UI
+```
+
+The key architectural principle is:
+
+**Build a reusable baseball movement-analysis engine, not a batting-only application. Batting is the first implemented action; pitching is a future consumer of the same core infrastructure.**
