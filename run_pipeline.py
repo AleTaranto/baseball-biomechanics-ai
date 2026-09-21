@@ -12,6 +12,7 @@ BACKEND = ROOT / "backend"
 if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
+from app.services.batting_metrics_service import BattingMetricsService
 from app.services.filtering_service import TemporalFilteringService
 from app.services.frame_extraction_service import FrameExtractionService
 from app.services.inspection_service import InspectionService
@@ -302,6 +303,21 @@ def run_pipeline(
     )
     segmentation_path.write_text(segmentation.model_dump_json(indent=2), encoding="utf-8")
 
+    batting_metrics_dir = ROOT / "sample-data" / "batting-metrics"
+    batting_metrics_dir.mkdir(parents=True, exist_ok=True)
+    batting_metrics_path = batting_metrics_dir / f"{video_id}.json"
+    batting_metrics = profiler.profile_stage(
+        "batting_metrics_analysis",
+        frames_processed=len(movement.frames),
+        input_fps=source_fps,
+        action=lambda: BattingMetricsService().analyze(
+            movement=movement,
+            kinematic=kinematics,
+            segmentation=segmentation,
+        ),
+    )
+    batting_metrics_path.write_text(batting_metrics.model_dump_json(indent=2), encoding="utf-8")
+
     profiler.write_report(ROOT / "sample-data" / "performance" / f"{video_id}.json")
 
     return {
@@ -313,6 +329,13 @@ def run_pipeline(
         "movement_path": movement_path,
         "kinematics_path": kinematics_path,
         "segmentation_path": segmentation_path,
+        "batting_metrics_path": batting_metrics_path,
+        "max_shoulder_hip_separation_deg": batting_metrics.max_shoulder_hip_separation_deg,
+        "is_proximal_to_distal": (
+            batting_metrics.kinematic_sequence.is_proximal_to_distal
+            if batting_metrics.kinematic_sequence
+            else None
+        ),
         "swing_detected": segmentation.swing_detected,
         "total_swings_found": segmentation.total_swings_found,
         "quality_summary_path": quality_result["quality_summary"],

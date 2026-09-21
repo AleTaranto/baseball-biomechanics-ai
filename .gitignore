@@ -35,6 +35,7 @@ sample-data/pose-quality/
 sample-data/performance/
 sample-data/kinematic-inspection/
 sample-data/segmentation/
+sample-data/batting-metrics/
 sample-data/models/
 sample-data/**/*.mp4
 sample-data/**/*.mov
