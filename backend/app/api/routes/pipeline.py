@@ -40,13 +40,27 @@ async def execute_pipeline(
             detail=f"Pipeline execution failed for video '{video_id}': {exc}",
         ) from exc
 
+    def _to_int(val: object) -> int | None:
+        if val is None or isinstance(val, (Path, dict, list)):
+            return None
+        if isinstance(val, (int, float, str, bytes, bytearray)):
+            return int(val)
+        return None
+
+    def _to_float(val: object) -> float | None:
+        if val is None or isinstance(val, (Path, dict, list)):
+            return None
+        if isinstance(val, (int, float, str, bytes, bytearray)):
+            return float(val)
+        return None
+
     return PipelineRunResponse(
-        video_id=str(result["video_id"]),
-        source_fps=result["source_fps"],  # type: ignore[arg-type]
-        processing_fps=result["processing_fps"],  # type: ignore[arg-type]
-        processing_mode=str(result["processing_mode"]),
-        total_frames=int(result["total_frames"] or 0),
-        frames_with_pose=int(result["frames_with_pose"] or 0),
+        video_id=str(result.get("video_id", video_id)),
+        source_fps=_to_float(result.get("source_fps")) or 0.0,
+        processing_fps=_to_float(result.get("processing_fps")) or 0.0,
+        processing_mode=str(result.get("processing_mode", request.processing_mode)),
+        total_frames=_to_int(result.get("total_frames")) or 0,
+        frames_with_pose=_to_int(result.get("frames_with_pose")) or 0,
         quality_summary_path=(
             str(result["quality_summary_path"])
             if result.get("quality_summary_path")
@@ -67,23 +81,14 @@ async def execute_pipeline(
             if result.get("pitching_result_path")
             else None
         ),
-        contact_frame=result.get("contact_frame"),  # type: ignore[arg-type]
-        contact_confidence=result.get("contact_confidence"),  # type: ignore[arg-type]
-        peak_barrel_speed=result.get("peak_barrel_speed"),  # type: ignore[arg-type]
-        max_shoulder_hip_separation_deg=result.get("max_shoulder_hip_separation_deg"),  # type: ignore[arg-type]
-        stride_length_normalized=result.get("stride_length_normalized"),  # type: ignore[arg-type]
-        arm_slot_angle_deg=result.get("arm_slot_angle_deg"),  # type: ignore[arg-type]
-        compute_reduction_percentage=float(result.get("compute_reduction_percentage") or 0.0),
-        action_windows_count=int(result.get("action_windows_count") or 0),
-        timestamps=result.get("timestamps", []),  # type: ignore[arg-type]
-        pelvis_angular_velocities=result.get("pelvis_angular_velocities", []),  # type: ignore[arg-type]
-        torso_angular_velocities=result.get("torso_angular_velocities", []),  # type: ignore[arg-type]
-        hand_speeds=result.get("hand_speeds", []),  # type: ignore[arg-type]
-        xfactor_angles=result.get("xfactor_angles", []),  # type: ignore[arg-type]
-        knee_angles=result.get("knee_angles", []),  # type: ignore[arg-type]
-        pose_3d_frames=result.get("pose_3d_frames", []),  # type: ignore[arg-type]
-        overlay_video_url=result.get("overlay_video_url"),  # type: ignore[arg-type]
-        source_video_url=result.get("source_video_url"),  # type: ignore[arg-type]
+        contact_frame=_to_int(result.get("contact_frame")),
+        contact_confidence=_to_float(result.get("contact_confidence")),
+        peak_barrel_speed=_to_float(result.get("peak_barrel_speed")),
+        max_shoulder_hip_separation_deg=_to_float(result.get("max_shoulder_hip_separation_deg")),
+        stride_length_normalized=_to_float(result.get("stride_length_normalized")),
+        arm_slot_angle_deg=_to_float(result.get("arm_slot_angle_deg")),
+        compute_reduction_percentage=_to_float(result.get("compute_reduction_percentage")) or 0.0,
+        action_windows_count=_to_int(result.get("action_windows_count")) or 0,
     )
 
 
@@ -99,7 +104,7 @@ async def execute_two_pass_scan(
     if not frames_dir.exists():
         fe.extract_frames(video_id)
 
-    config = TwoPassConfig(scan_sampling_interval=sampling_interval)
+    config = TwoPassConfig(scan_sampling_interval=sampling_interval, window_padding_seconds=0.5)
     windows = TwoPassPipelineService.scan_video_for_action_windows(
         frames_dir=frames_dir,
         fps=30.0,

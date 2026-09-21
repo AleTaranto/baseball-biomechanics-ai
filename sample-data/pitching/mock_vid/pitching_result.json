@@ -1,0 +1,32 @@
+{
+  "video_id": "mock_vid",
+  "delivery_detected": true,
+  "delivery_window": {
+    "delivery_id": 1,
+    "start_frame": 0,
+    "end_frame": 10,
+    "duration_seconds": 0.33,
+    "leg_lift_frame": null,
+    "foot_strike_frame": null,
+    "release_frame": null,
+    "release_time_seconds": null,
+    "peak_hand_speed": null,
+    "phases": []
+  },
+  "metrics": {
+    "handedness": "RHP",
+    "stride_length_normalized": 0.42,
+    "lead_knee_angle_at_foot_strike": null,
+    "lead_knee_angle_at_release": null,
+    "max_hip_shoulder_separation_deg": null,
+    "trunk_forward_tilt_at_release_deg": null,
+    "trunk_lateral_tilt_at_release_deg": null,
+    "arm_slot_angle_deg": null,
+    "elbow_flexion_at_foot_strike_deg": null,
+    "max_shoulder_external_rotation_deg": null,
+    "release_height_normalized": null,
+    "release_extension_normalized": null,
+    "kinematic_sequence_order": [],
+    "is_proximal_to_distal": false
+  }
+}
