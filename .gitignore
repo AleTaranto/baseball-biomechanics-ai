@@ -35,8 +35,10 @@ sample-data/pose-quality/
 sample-data/performance/
 sample-data/kinematic-inspection/
 sample-data/segmentation/
+sample-data/batting/
 sample-data/batting-metrics/
 sample-data/bat-tracking/
+sample-data/contact/
 sample-data/contact-events/
 sample-data/benchmark/
 sample-data/models/

@@ -20,6 +20,7 @@ from app.services.frame_extraction_service import FrameExtractionService
 from app.services.inspection_service import InspectionService
 from app.services.kinematics_service import KinematicAnalysisService
 from app.services.movement_service import MovementDataService
+from app.services.pitching_analyzer_service import PitchingAnalyzer
 from app.services.pose_estimation_service import PoseEstimationService
 from app.services.pose_quality_service import PoseQualityAnalysisService
 from app.services.profiling_service import PerformanceProfiler
@@ -61,6 +62,7 @@ def run_pipeline(
     filter_mode: str = "filtered",
     generate_overlay: bool = True,
     manual_contact_frame: int | None = None,
+    handedness_override: str | None = None,
     use_cache: bool = True,
     force_recompute: bool = False,
 ) -> dict[str, Path | str | int | float | None]:
@@ -362,6 +364,24 @@ def run_pipeline(
     )
     contact_events_path.write_text(contact_result.model_dump_json(indent=2), encoding="utf-8")
 
+    pitching_result = profiler.profile_stage(
+        "pitching_analysis",
+        frames_processed=len(movement.frames),
+        input_fps=source_fps,
+        action=lambda: PitchingAnalyzer().analyze_pitch(
+            movement=movement,
+            kinematic=kinematics,
+            handedness_override=handedness_override,
+        ),
+    )
+    pitching_result_path = (
+        ROOT / "sample-data" / "pitching" / str(video_id) / "pitching_result.json"
+    )
+    pitching_result_path.parent.mkdir(parents=True, exist_ok=True)
+    pitching_result_path.write_text(
+        pitching_result.model_dump_json(indent=2), encoding="utf-8"
+    )
+
     inspection_dir = ROOT / "sample-data" / "kinematic-inspection" / str(video_id)
     inspection_bundle = None
     overlay_mode = (
@@ -383,6 +403,7 @@ def run_pipeline(
                 segmentation=segmentation,
                 contact_result=contact_result,
                 batting_metrics=batting_metrics,
+                pitching_result=pitching_result,
             ),
         )
 
@@ -398,6 +419,7 @@ def run_pipeline(
         "kinematics_path": kinematics_path,
         "segmentation_path": segmentation_path,
         "batting_metrics_path": batting_metrics_path,
+        "pitching_result_path": pitching_result_path,
         "bat_tracking_path": bat_tracking_path,
         "contact_events_path": contact_events_path,
         "contact_frame": contact_result.contact_frame,
@@ -407,6 +429,16 @@ def run_pipeline(
         "peak_barrel_speed": bat_tracking.peak_barrel_speed,
         "attack_angle_at_contact_deg": bat_tracking.attack_angle_at_contact_deg,
         "max_shoulder_hip_separation_deg": batting_metrics.max_shoulder_hip_separation_deg,
+        "stride_length_normalized": (
+            pitching_result.metrics.stride_length_normalized
+            if pitching_result.metrics
+            else None
+        ),
+        "arm_slot_angle_deg": (
+            pitching_result.metrics.arm_slot_angle_deg
+            if pitching_result.metrics
+            else None
+        ),
         "is_proximal_to_distal": (
             batting_metrics.kinematic_sequence.is_proximal_to_distal
             if batting_metrics.kinematic_sequence

@@ -1,6 +1,12 @@
-from fastapi import FastAPI
+from pathlib import Path
 
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+
+from app.api.routes.analysis import router as analysis_router
+from app.api.routes.benchmark import router as benchmark_router
 from app.api.routes.health import router as health_router
+from app.api.routes.pipeline import router as pipeline_router
 from app.api.routes.videos import router as videos_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
@@ -17,8 +23,22 @@ app = FastAPI(
 
 app.include_router(health_router)
 app.include_router(videos_router)
+app.include_router(analysis_router)
+app.include_router(pipeline_router)
+app.include_router(benchmark_router)
+
+frontend_dir = Path(__file__).resolve().parents[2] / "frontend"
+if frontend_dir.exists():
+    app.mount(
+        "/dashboard",
+        StaticFiles(directory=str(frontend_dir), html=True),
+        name="dashboard",
+    )
 
 
 @app.get("/")
 async def root() -> dict[str, str]:
-    return {"message": f"{settings.app_name} is running"}
+    return {
+        "message": f"{settings.app_name} is running",
+        "dashboard_url": "/dashboard",
+    }
