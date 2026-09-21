@@ -12,6 +12,7 @@ from app.schemas.batting import (
 from app.schemas.kinematics import KinematicRecording
 from app.schemas.movement import FramePose, MovementRecording
 from app.schemas.segmentation import SwingSegmentationResult, SwingWindow
+from app.services.biomechanics_engine import BiomechanicsEngine
 
 
 class BattingMetricsService:
@@ -38,18 +39,12 @@ class BattingMetricsService:
 
     @staticmethod
     def _line_angle_degrees(p1: tuple[float, float], p2: tuple[float, float]) -> float:
-        dx = p2[0] - p1[0]
-        dy = p2[1] - p1[1]
-        rad = math.atan2(dy, dx)
-        deg = math.degrees(rad) % 360.0
-        return deg
+        return BiomechanicsEngine.segment_angle(p1, p2).angle_degrees
 
     @staticmethod
     def _angle_diff_degrees(angle1: float, angle2: float) -> float:
-        diff = abs(angle1 - angle2) % 360.0
-        if diff > 180.0:
-            diff = 360.0 - diff
-        return diff
+        ang_vel = BiomechanicsEngine.angular_velocity(angle1, angle2, dt=1.0)
+        return abs(ang_vel.angular_velocity_deg_s)
 
     @staticmethod
     def _coords(joint: object | None) -> tuple[float, float] | None:
