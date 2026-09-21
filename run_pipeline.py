@@ -20,6 +20,7 @@ from app.services.movement_service import MovementDataService
 from app.services.pose_estimation_service import PoseEstimationService
 from app.services.pose_quality_service import PoseQualityAnalysisService
 from app.services.profiling_service import PerformanceProfiler
+from app.services.swing_segmentation_service import BattingSwingSegmenter
 from app.services.video_ingestion_service import VideoIngestionService
 
 
@@ -290,6 +291,17 @@ def run_pipeline(
             ),
         )
 
+    segmentation_dir = ROOT / "sample-data" / "segmentation"
+    segmentation_dir.mkdir(parents=True, exist_ok=True)
+    segmentation_path = segmentation_dir / f"{video_id}.json"
+    segmentation = profiler.profile_stage(
+        "swing_segmentation",
+        frames_processed=len(movement.frames),
+        input_fps=source_fps,
+        action=lambda: BattingSwingSegmenter().segment(movement=movement, kinematic=kinematics),
+    )
+    segmentation_path.write_text(segmentation.model_dump_json(indent=2), encoding="utf-8")
+
     profiler.write_report(ROOT / "sample-data" / "performance" / f"{video_id}.json")
 
     return {
@@ -300,6 +312,9 @@ def run_pipeline(
         "source_resolution": source_resolution,
         "movement_path": movement_path,
         "kinematics_path": kinematics_path,
+        "segmentation_path": segmentation_path,
+        "swing_detected": segmentation.swing_detected,
+        "total_swings_found": segmentation.total_swings_found,
         "quality_summary_path": quality_result["quality_summary"],
         "overlay_video_path": (
             inspection_bundle["overlay_video"] if inspection_bundle is not None else None

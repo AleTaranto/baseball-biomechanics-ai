@@ -34,6 +34,7 @@ sample-data/pose-estimation/
 sample-data/pose-quality/
 sample-data/performance/
 sample-data/kinematic-inspection/
+sample-data/segmentation/
 sample-data/models/
 sample-data/**/*.mp4
 sample-data/**/*.mov
