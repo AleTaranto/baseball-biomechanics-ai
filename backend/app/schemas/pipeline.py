@@ -1,4 +1,4 @@
-from __future__ import annotations
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -43,6 +43,8 @@ class PipelineRunResponse(BaseModel):
     frames_with_pose: int = 0
     quality_summary_path: str | None = None
     overlay_video_path: str | None = None
+    overlay_video_url: str | None = None
+    source_video_url: str | None = None
     batting_metrics_path: str | None = None
     pitching_result_path: str | None = None
     contact_frame: int | None = None
@@ -53,3 +55,10 @@ class PipelineRunResponse(BaseModel):
     arm_slot_angle_deg: float | None = None
     compute_reduction_percentage: float = 0.0
     action_windows_count: int = 0
+    timestamps: list[float] = Field(default_factory=list)
+    pelvis_angular_velocities: list[float] = Field(default_factory=list)
+    torso_angular_velocities: list[float] = Field(default_factory=list)
+    hand_speeds: list[float] = Field(default_factory=list)
+    xfactor_angles: list[float] = Field(default_factory=list)
+    knee_angles: list[float] = Field(default_factory=list)
+    pose_3d_frames: list[dict[str, Any]] = Field(default_factory=list)

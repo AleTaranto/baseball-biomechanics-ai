@@ -3,9 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Baseball Biomechanics AI — Analysis & Visualizer</title>
+  <title>Baseball Biomechanics AI — Visualizer & 3D Analytics</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Three.js & OrbitControls for Option 2: 3D Interactive Skeleton -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -22,6 +25,7 @@
               gold: '#f59e0b',
               blue: '#3b82f6',
               cyan: '#06b6d4',
+              purple: '#8b5cf6',
             }
           }
         }
@@ -37,13 +41,22 @@
       border-radius: 50%;
       cursor: pointer;
     }
+    .slider-thumb-purple::-webkit-slider-thumb {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      background: #8b5cf6;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    canvas { outline: none; }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans">
 
-  <!-- Navigation -->
-  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+  <!-- Header & Navigation -->
+  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center space-x-3">
         <div class="w-10 h-10 rounded-lg bg-gradient-to-tr from-emerald-600 to-cyan-500 flex items-center justify-center font-bold text-xl text-white shadow-lg shadow-emerald-900/40">
           ⚾
@@ -51,59 +64,86 @@
         <div>
           <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
             Baseball Biomechanics AI
-            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800">v0.1.0</span>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800">v0.2.0</span>
           </h1>
-          <p class="text-xs text-slate-400">High-Precision Computer Vision & Kinetic Analysis</p>
+          <p class="text-xs text-slate-400">Computer Vision Biomechanics & 3D Interactive Analysis</p>
         </div>
       </div>
 
-      <!-- Action mode tabs -->
-      <div class="flex items-center space-x-2 bg-slate-950 p-1 rounded-lg border border-slate-800">
-        <button id="tab-batting" class="px-4 py-1.5 rounded-md text-xs font-medium bg-emerald-600 text-white shadow transition" onclick="switchMode('batting')">
-          Batting Analysis
+      <!-- Action Mode Tabs -->
+      <div class="flex flex-wrap items-center gap-1.5 bg-slate-950 p-1.5 rounded-lg border border-slate-800 text-xs">
+        <button id="tab-batting" class="px-3 py-1.5 rounded-md font-medium bg-emerald-600 text-white shadow transition" onclick="switchMode('batting')">
+          Batting
         </button>
-        <button id="tab-pitching" class="px-4 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 transition" onclick="switchMode('pitching')">
-          Pitching Analysis
+        <button id="tab-pitching" class="px-3 py-1.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition" onclick="switchMode('pitching')">
+          Pitching
         </button>
-        <button id="tab-benchmarks" class="px-4 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 transition" onclick="switchMode('benchmarks')">
-          Strategy Benchmarks
+        <button id="tab-3d" class="px-3 py-1.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition flex items-center gap-1" onclick="switchMode('3d')">
+          <span>🌐</span> 3D Skeleton (Three.js)
+        </button>
+        <button id="tab-compare" class="px-3 py-1.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition flex items-center gap-1" onclick="switchMode('compare')">
+          <span>👥</span> Side-by-Side
+        </button>
+        <button id="tab-benchmarks" class="px-3 py-1.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition" onclick="switchMode('benchmarks')">
+          Benchmarks
         </button>
       </div>
     </div>
   </header>
 
-  <!-- Main Content -->
+  <!-- Quick Video Selector Bar -->
+  <div class="bg-slate-900/60 border-b border-slate-800/80 px-4 py-2">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div class="flex items-center space-x-2">
+        <span class="text-slate-400 font-medium">Quick Select Video:</span>
+        <button class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition" onclick="loadSampleVideo('swing1')">
+          Swing 1 (Raw 30 FPS)
+        </button>
+        <button class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition" onclick="loadSampleVideo('swing2')">
+          Swing 2 (High Speed)
+        </button>
+        <button class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition" onclick="loadSampleVideo('swing3')">
+          Swing 3
+        </button>
+        <label class="px-3 py-1 rounded bg-emerald-700/80 hover:bg-emerald-600 text-white font-medium cursor-pointer transition shadow flex items-center gap-1">
+          <span>📁 Upload Custom Video</span>
+          <input type="file" id="video-input-header" class="hidden" accept="video/*" onchange="handleFileUpload(event)">
+        </label>
+      </div>
+      <div class="flex items-center space-x-2 text-slate-400 font-mono">
+        <span>Current ID:</span>
+        <span id="current-video-id-badge" class="px-2 py-0.5 rounded bg-slate-800 text-emerald-400 border border-slate-700">swing1</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content Layout -->
   <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-    <!-- Left Column: Video Player & Overlays (8 Cols) -->
+    <!-- Left Column: Primary Video / 3D Canvas / Side-by-Side (8 Cols) -->
     <section class="lg:col-span-8 flex flex-col space-y-4">
-      <!-- Player Container -->
-      <div class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-xl flex flex-col">
-        <!-- Visualizer Area -->
+
+      <!-- PANEL 1: Standard Single Video View -->
+      <div id="single-view-container" class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-xl flex flex-col">
+        <!-- Video Canvas Area -->
         <div class="relative bg-black aspect-video flex items-center justify-center group overflow-hidden">
           <video id="video-element" class="w-full h-full object-contain" playsinline preload="auto">
-            <source src="" type="video/mp4">
+            <source src="/api/v1/videos/swing1/stream" type="video/mp4">
           </video>
           <canvas id="overlay-canvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
 
           <!-- Empty State Prompt -->
-          <div id="empty-state" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90 text-slate-400 p-6 text-center">
+          <div id="empty-state" class="absolute inset-0 hidden flex-col items-center justify-center bg-slate-900/90 text-slate-400 p-6 text-center">
             <div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-2xl mb-4 text-emerald-400">
               📹
             </div>
-            <h3 class="text-base font-semibold text-white">No Video Loaded</h3>
-            <p class="text-xs text-slate-400 max-w-sm mt-1">Upload a high-speed swing or pitching video to extract kinematics, trajectory trails, and phase segmentation.</p>
-            <div class="mt-4 flex gap-2">
-              <label class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium cursor-pointer transition shadow">
-                Choose Video File
-                <input type="file" id="video-input" class="hidden" accept="video/*">
-              </label>
-            </div>
+            <h3 class="text-base font-semibold text-white">Select or Upload a Video</h3>
+            <p class="text-xs text-slate-400 max-w-sm mt-1">Upload a baseball swing or pitching video to extract kinematics, trajectory trails, and phase segmentation.</p>
           </div>
 
-          <!-- Phase & Release Banner Overlay HUD -->
-          <div id="hud-badge" class="absolute top-4 right-4 hidden bg-slate-900/90 border border-emerald-500/50 text-emerald-400 px-3 py-1 rounded text-xs font-bold uppercase tracking-wider backdrop-blur">
-            PHASE: DOWNSWING
+          <!-- Realtime HUD Badges -->
+          <div id="hud-badge" class="absolute top-4 right-4 bg-slate-900/90 border border-emerald-500/50 text-emerald-400 px-3 py-1 rounded text-xs font-bold uppercase tracking-wider backdrop-blur shadow">
+            PHASE: STANCE
           </div>
           <div id="hud-flash" class="absolute top-12 left-1/2 -translate-x-1/2 hidden bg-red-600/90 border-2 border-amber-400 text-white px-5 py-1.5 rounded-lg text-sm font-extrabold uppercase tracking-widest shadow-2xl backdrop-blur animate-pulse">
             >> IMPACT / CONTACT <<
@@ -119,8 +159,8 @@
             <span id="frame-counter" class="text-xs font-mono text-emerald-400">Frame 0/0</span>
           </div>
 
-          <!-- Control Buttons -->
-          <div class="flex items-center justify-between">
+          <!-- Buttons & Layer Toggles -->
+          <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center space-x-2">
               <button id="btn-step-back" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition" title="Step Back 1 Frame">
                 ⏮ -1F
@@ -131,7 +171,7 @@
               <button id="btn-step-fwd" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition" title="Step Forward 1 Frame">
                 +1F ⏭
               </button>
-              <div class="h-4 w-px bg-slate-700 mx-2"></div>
+              <div class="h-4 w-px bg-slate-700 mx-1"></div>
               <select id="playback-speed" class="bg-slate-800 border border-slate-700 text-xs rounded-lg px-2 py-1.5 text-slate-300 focus:outline-none focus:border-emerald-500">
                 <option value="0.25">0.25x (Slow-Mo)</option>
                 <option value="0.5" selected>0.5x</option>
@@ -139,38 +179,129 @@
               </select>
             </div>
 
-            <!-- Layer Toggles -->
             <div class="flex items-center space-x-2 text-xs">
               <label class="flex items-center space-x-1.5 cursor-pointer bg-slate-800 px-2 py-1 rounded text-slate-300 hover:text-white">
-                <input type="checkbox" id="toggle-skeleton" checked class="rounded accent-emerald-500">
-                <span>Skeleton</span>
-              </label>
-              <label class="flex items-center space-x-1.5 cursor-pointer bg-slate-800 px-2 py-1 rounded text-slate-300 hover:text-white">
-                <input type="checkbox" id="toggle-trail" checked class="rounded accent-emerald-500">
-                <span>Motion Trail</span>
+                <input type="checkbox" id="toggle-overlay-video" checked class="rounded accent-emerald-500" onchange="toggleOverlayMode(this.checked)">
+                <span>Rendered Overlay</span>
               </label>
               <label class="flex items-center space-x-1.5 cursor-pointer bg-slate-800 px-2 py-1 rounded text-slate-300 hover:text-white">
                 <input type="checkbox" id="toggle-hud" checked class="rounded accent-emerald-500">
-                <span>HUD Metrics</span>
+                <span>HUD</span>
               </label>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Kinematic Plots Panel -->
+      <!-- PANEL 2: Option 2 — Three.js 3D Skeleton Visualizer Viewport -->
+      <div id="threejs-view-container" class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-xl flex flex-col hidden">
+        <div class="relative bg-slate-950 aspect-video flex items-center justify-center overflow-hidden">
+          <div id="three-canvas-container" class="w-full h-full cursor-grab active:cursor-grabbing"></div>
+          
+          <!-- Camera Presets Overlay Bar -->
+          <div class="absolute top-3 left-3 flex flex-wrap gap-1.5 bg-slate-900/90 border border-slate-800 p-1.5 rounded-lg backdrop-blur text-xs z-10">
+            <span class="text-slate-400 font-medium px-1 flex items-center">Presets:</span>
+            <button class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition" onclick="setCameraView('top')">
+              Top-Down (X-Factor)
+            </button>
+            <button class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition" onclick="setCameraView('front')">
+              Frontal (Pitcher)
+            </button>
+            <button class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition" onclick="setCameraView('side')">
+              Side (Dugout)
+            </button>
+            <button class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition" onclick="setCameraView('behind')">
+              Behind Plate
+            </button>
+            <button class="px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white transition" onclick="resetCameraView()">
+              Reset 3D
+            </button>
+          </div>
+
+          <!-- Guidance badge -->
+          <div class="absolute bottom-3 right-3 bg-slate-900/80 border border-slate-800 px-3 py-1 rounded text-[11px] text-slate-400 pointer-events-none">
+            🖱️ Trascina per ruotare 360° • Rotellina per zoomare
+          </div>
+        </div>
+
+        <!-- 3D Synchronized Scrubber Bar -->
+        <div class="p-4 bg-slate-900 border-t border-slate-800 flex items-center space-x-3">
+          <span id="three-time-display" class="text-xs font-mono text-slate-400">Frame 0</span>
+          <input type="range" id="three-scrubber" min="0" max="100" value="0" step="1" class="flex-1 slider-thumb h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer" oninput="sync3DFromScrubber(this.value)">
+          <span id="three-frame-badge" class="text-xs font-mono text-emerald-400">3D Synchronized</span>
+        </div>
+      </div>
+
+      <!-- PANEL 3: Option 3 — Side-by-Side Video Comparison View -->
+      <div id="compare-view-container" class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-xl flex flex-col hidden">
+        <div class="p-3 bg-slate-950 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-emerald-400">VIDEO A:</span>
+            <span id="compare-video-a-label" class="text-slate-300 font-mono">swing1</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-purple-400">VIDEO B:</span>
+            <select id="select-video-b" class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200 focus:outline-none" onchange="loadVideoB(this.value)">
+              <option value="swing2" selected>Sample: Swing 2</option>
+              <option value="swing3">Sample: Swing 3</option>
+              <option value="swing1">Sample: Swing 1</option>
+            </select>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-slate-400">Sync Offset (Δ Frames):</span>
+            <input type="range" id="sync-offset-slider" min="-30" max="30" value="0" step="1" class="w-24 slider-thumb-purple h-1 bg-slate-800 rounded appearance-none cursor-pointer" oninput="updateSyncOffset(this.value)">
+            <span id="sync-offset-val" class="font-mono text-purple-400 w-8 text-right">0F</span>
+          </div>
+        </div>
+
+        <!-- Dual Video Viewport -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-px bg-slate-800">
+          <div class="relative bg-black aspect-video flex items-center justify-center">
+            <video id="video-element-a" class="w-full h-full object-contain" playsinline preload="auto">
+              <source src="/api/v1/videos/swing1/stream" type="video/mp4">
+            </video>
+            <div class="absolute top-2 left-2 bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded">
+              A: Primary Video
+            </div>
+          </div>
+          <div class="relative bg-black aspect-video flex items-center justify-center">
+            <video id="video-element-b" class="w-full h-full object-contain" playsinline preload="auto">
+              <source src="/api/v1/videos/swing2/stream" type="video/mp4">
+            </video>
+            <div class="absolute top-2 left-2 bg-purple-950/80 border border-purple-500/50 text-purple-300 text-[10px] font-bold px-2 py-0.5 rounded">
+              B: Comparison Video
+            </div>
+          </div>
+        </div>
+
+        <!-- Dual Synchronized Scrubber Bar -->
+        <div class="p-4 bg-slate-900 border-t border-slate-800 flex items-center space-x-3">
+          <button id="btn-compare-play-pause" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition" onclick="toggleComparePlayback()">
+            ▶ Play Both
+          </button>
+          <input type="range" id="compare-master-scrubber" min="0" max="100" value="0" step="1" class="flex-1 slider-thumb h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer" oninput="syncDualScrubber(this.value)">
+          <span id="compare-frame-counter" class="text-xs font-mono text-slate-400">Master Frame 0</span>
+        </div>
+      </div>
+
+      <!-- Kinematic Plots Panel (Chart.js) -->
       <div class="bg-slate-900 rounded-xl border border-slate-800 p-4 shadow-xl">
         <div class="flex items-center justify-between mb-3">
-          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300">Kinematic Curves Over Time</h3>
-          <span class="text-xs text-slate-400 font-mono">120 FPS Normalized Timeline</span>
+          <div>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+              <span>Kinematic Curves Over Time</span>
+              <span id="chart-data-source-badge" class="text-[10px] font-normal px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">MediaPipe BlazePose 120 FPS</span>
+            </h3>
+          </div>
+          <span class="text-xs text-slate-400 font-mono" id="chart-timeline-label">Normalized Timeline</span>
         </div>
-        <div class="h-48 w-full">
+        <div class="h-56 w-full">
           <canvas id="kinematics-chart"></canvas>
         </div>
       </div>
     </section>
 
-    <!-- Right Column: Metrics & Pipeline Controls (4 Cols) -->
+    <!-- Right Column: Metrics, Pipeline Controls, Side-by-Side Delta (4 Cols) -->
     <aside class="lg:col-span-4 flex flex-col space-y-4">
 
       <!-- Pipeline Execution Card -->
@@ -209,9 +340,9 @@
         <div class="grid grid-cols-2 gap-3">
           <!-- X-Factor Separation -->
           <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
-            <span class="text-xs text-slate-400">Max X-Factor (Hip-Shoulder)</span>
+            <span class="text-xs text-slate-400">Max X-Factor</span>
             <div class="text-xl font-extrabold text-white mt-1" id="val-xfactor">--°</div>
-            <span class="text-[10px] text-emerald-400">Rotational Stretch</span>
+            <span class="text-[10px] text-emerald-400">Pelvis-Shoulder Stretch</span>
           </div>
           <!-- Bat Speed -->
           <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
@@ -221,28 +352,15 @@
           </div>
           <!-- Vertical Attack Angle -->
           <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
-            <span class="text-xs text-slate-400">Vertical Attack Angle</span>
+            <span class="text-xs text-slate-400">Attack Angle</span>
             <div class="text-xl font-extrabold text-white mt-1" id="val-attack-angle">--°</div>
-            <span class="text-[10px] text-slate-400">Angle at Impact</span>
+            <span class="text-[10px] text-slate-400">At Contact Impact</span>
           </div>
           <!-- Head Drift -->
           <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
             <span class="text-xs text-slate-400">Head Drift</span>
-            <div class="text-xl font-extrabold text-white mt-1" id="val-head-drift">--</div>
-            <span class="text-[10px] text-slate-400">Displacement from Stance</span>
-          </div>
-        </div>
-
-        <!-- Kinematic Sequencing Status -->
-        <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-slate-400">Kinematic Sequencing</span>
-            <span id="badge-sequencing" class="text-xs px-2 py-0.5 rounded font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800">
-              Pelvis → Torso → Hands
-            </span>
-          </div>
-          <div class="w-full bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
-            <div class="bg-emerald-500 h-full w-full"></div>
+            <div class="text-xl font-extrabold text-white mt-1" id="val-head-drift">-- m</div>
+            <span class="text-[10px] text-slate-400">Rotational Stability</span>
           </div>
         </div>
       </div>
@@ -255,29 +373,56 @@
         </h2>
 
         <div class="grid grid-cols-2 gap-3">
-          <!-- Handedness -->
           <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
             <span class="text-xs text-slate-400">Pitcher Handedness</span>
             <div class="text-xl font-extrabold text-cyan-400 mt-1" id="val-pitch-handedness">--</div>
             <span class="text-[10px] text-slate-400">Auto-detected</span>
           </div>
-          <!-- Arm Slot -->
           <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
             <span class="text-xs text-slate-400">Arm Slot Angle</span>
             <div class="text-xl font-extrabold text-white mt-1" id="val-arm-slot">--°</div>
             <span class="text-[10px] text-amber-400">At Ball Release</span>
           </div>
-          <!-- Stride Length -->
           <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
             <span class="text-xs text-slate-400">Stride Length</span>
             <div class="text-xl font-extrabold text-white mt-1" id="val-stride-len">--</div>
-            <span class="text-[10px] text-slate-400">At Foot Strike</span>
+            <span class="text-[10px] text-slate-400">Normalized to Height</span>
           </div>
-          <!-- Lead Knee Flexion -->
           <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
             <span class="text-xs text-slate-400">Lead Knee Angle</span>
             <div class="text-xl font-extrabold text-white mt-1" id="val-knee-angle">--°</div>
-            <span class="text-[10px] text-emerald-400">Knee Block</span>
+            <span class="text-[10px] text-emerald-400">Bracing / Foot Plant</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Side-by-Side Comparison KPI Delta Card -->
+      <div id="compare-kpis" class="bg-slate-900 rounded-xl border border-slate-800 p-5 shadow-xl space-y-3 hidden">
+        <h2 class="text-sm font-bold text-white border-b border-slate-800 pb-2 flex items-center justify-between">
+          Side-by-Side Biomechanical Deltas
+          <span class="text-[10px] text-purple-400 font-mono">Video A vs Video B</span>
+        </h2>
+        <div class="space-y-2 text-xs">
+          <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex justify-between items-center">
+            <div>
+              <span class="text-slate-400 block">Max X-Factor:</span>
+              <span class="text-slate-200 font-mono" id="comp-xfactor-a">A: --°</span> | <span class="text-purple-300 font-mono" id="comp-xfactor-b">B: --°</span>
+            </div>
+            <span class="font-bold font-mono px-2 py-0.5 rounded bg-slate-800" id="delta-xfactor">Δ --°</span>
+          </div>
+          <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex justify-between items-center">
+            <div>
+              <span class="text-slate-400 block">Peak Barrel Speed:</span>
+              <span class="text-slate-200 font-mono" id="comp-speed-a">A: -- px/s</span> | <span class="text-purple-300 font-mono" id="comp-speed-b">B: -- px/s</span>
+            </div>
+            <span class="font-bold font-mono px-2 py-0.5 rounded bg-slate-800" id="delta-speed">Δ -- px/s</span>
+          </div>
+          <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex justify-between items-center">
+            <div>
+              <span class="text-slate-400 block">Attack Angle:</span>
+              <span class="text-slate-200 font-mono" id="comp-angle-a">A: --°</span> | <span class="text-purple-300 font-mono" id="comp-angle-b">B: --°</span>
+            </div>
+            <span class="font-bold font-mono px-2 py-0.5 rounded bg-slate-800" id="delta-angle">Δ --°</span>
           </div>
         </div>
       </div>
@@ -307,6 +452,6 @@
     </aside>
   </main>
 
-  <script src="/dashboard/app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
