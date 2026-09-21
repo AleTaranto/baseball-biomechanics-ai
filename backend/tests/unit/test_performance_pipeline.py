@@ -10,6 +10,7 @@ from run_pipeline import _resolve_sampling_interval
 
 def test_sampling_interval_resolves_expected_processing_modes() -> None:
     assert _resolve_sampling_interval(processing_mode="full", sampling_interval=None) == 1
+    assert _resolve_sampling_interval(processing_mode="two_pass", sampling_interval=None) == 1
     assert _resolve_sampling_interval(processing_mode="half_rate", sampling_interval=None) == 2
     assert _resolve_sampling_interval(processing_mode="custom", sampling_interval=4) == 4
 
