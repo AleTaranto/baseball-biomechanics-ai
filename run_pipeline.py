@@ -581,34 +581,100 @@ def run_pipeline(
         else:
             hx_2d, hy_2d = 0.45, 0.45
 
-        det = bat_tracking.detections[idx] if idx < len(bat_tracking.detections) else None
-        if det and det.detected and det.barrel_point:
-            bx_norm, by_norm = det.barrel_point
-            bx = (bx_norm - 0.5) * 2.0
-            by = (1.0 - by_norm) * 1.8
-            d_xy_sq = (bx - hx) ** 2 + (by - hy) ** 2
-            dz_mag = math.sqrt(max(0.0, 0.85**2 - d_xy_sq))
-            z_dir = 1.0 if idx >= contact_idx else -1.0
-            bz = hz + z_dir * dz_mag
-            conf = float(det.confidence or 0.85)
-            bx_2d = float(bx_norm)
-            by_2d = float(by_norm)
-        else:
-            is_rhb = (resolved_batter_stance == "RHB")
-            prog = (idx - (contact_idx - 14)) / 22.0
-            prog = max(0.0, min(1.25, prog))
+        # Compute anatomical torso scale for realistic bat dimensions
+        lsh = f.joints.get("left_shoulder")
+        rsh = f.joints.get("right_shoulder")
+        lhip = f.joints.get("left_hip")
+        rhip = f.joints.get("right_hip")
+        le = f.joints.get("left_elbow")
+        re = f.joints.get("right_elbow")
 
-            sweep_angle = (1.0 - prog) * (math.pi * 0.55) - (math.pi * 0.15)
-            dir_x = math.cos(sweep_angle) * (0.85 if is_rhb else -0.85)
-            dir_y = (1.0 - prog) * 0.40 - (0.12 if prog > 0.6 else 0.0)
-            dir_z = (prog - 0.55) * 0.65
-            norm = math.hypot(dir_x, math.hypot(dir_y, dir_z)) or 1.0
-            bx = hx + (dir_x / norm) * 0.85
-            by = hy + (dir_y / norm) * 0.85
-            bz = hz + (dir_z / norm) * 0.85
-            conf = 0.70
-            bx_2d = max(0.0, min(1.0, (bx / 2.0) + 0.5))
-            by_2d = max(0.0, min(1.0, 1.0 - (by / 1.8)))
+        hip_y = [j.y for j in (lhip, rhip) if j and j.y is not None]
+        sh_y = [j.y for j in (lsh, rsh) if j and j.y is not None]
+        if hip_y and sh_y:
+            torso_h = max(0.12, abs(sum(hip_y) / len(hip_y) - sum(sh_y) / len(sh_y)))
+        else:
+            torso_h = 0.24
+        # Standard adult bat is ~1.0-1.1x torso height in projected 2D view
+        bat_len_2d = max(0.15, min(0.30, torso_h * 1.05))
+
+        elbow_2d_pts = [
+            (j.x, j.y)
+            for j in (le, re)
+            if j is not None and j.x is not None and j.y is not None
+        ]
+        if elbow_2d_pts:
+            ex_2d = sum(p[0] for p in elbow_2d_pts) / len(elbow_2d_pts)
+            ey_2d = sum(p[1] for p in elbow_2d_pts) / len(elbow_2d_pts)
+        else:
+            ex_2d = hx_2d - (0.08 if resolved_batter_stance == "RHB" else -0.08)
+            ey_2d = hy_2d + 0.12
+
+        det = bat_tracking.detections[idx] if idx < len(bat_tracking.detections) else None
+        optical_valid = False
+        if det and det.detected and det.barrel_point:
+            bx_raw, by_raw = det.barrel_point
+            if det.handle_point:
+                hx_raw, by_handle = det.handle_point
+            else:
+                hx_raw, by_handle = hx_2d, hy_2d
+            raw_dx = bx_raw - hx_raw
+            raw_dy = by_raw - by_handle
+            raw_len = math.hypot(raw_dx, raw_dy)
+            # Accept optical detection if non-degenerate
+            if 0.04 <= raw_len <= 0.65:
+                bx_2d = hx_2d + (raw_dx / raw_len) * bat_len_2d
+                by_2d = hy_2d + (raw_dy / raw_len) * bat_len_2d
+                optical_valid = True
+                conf = float(det.confidence or 0.85)
+
+        if not optical_valid:
+            is_rhb = (resolved_batter_stance == "RHB")
+            arm_dx = hx_2d - ex_2d
+            arm_dy = hy_2d - ey_2d
+            arm_len = math.hypot(arm_dx, arm_dy) or 1.0
+            arm_ux = arm_dx / arm_len
+            arm_uy = arm_dy / arm_len
+
+            # Dynamic bat progression around contact frame
+            if idx < (contact_idx - 8):
+                # Stance / Load phase: bat angled upright and back
+                dir_x = arm_ux * 0.4 + (0.35 if is_rhb else -0.35)
+                dir_y = -abs(arm_uy * 0.7 + 0.6)  # Upward in image space (-Y)
+            elif idx <= contact_idx:
+                # Swing acceleration into contact
+                tau = (idx - (contact_idx - 8)) / 8.0
+                ang = (1.0 - tau) * (-1.3) + tau * (0.15 if is_rhb else -0.15)
+                dir_x = math.cos(ang) * (1.0 if is_rhb else -1.0)
+                dir_y = math.sin(ang)
+            else:
+                # Follow-through phase
+                tau_ft = min(1.0, (idx - contact_idx) / 10.0)
+                ang_ft = (0.15 if is_rhb else -0.15) + tau_ft * (1.2 if is_rhb else -1.2)
+                dir_x = math.cos(ang_ft) * (1.0 if is_rhb else -1.0)
+                dir_y = -(0.1 + 0.6 * tau_ft)
+
+            norm = math.hypot(dir_x, dir_y) or 1.0
+            bx_2d = max(0.01, min(0.99, hx_2d + (dir_x / norm) * bat_len_2d))
+            by_2d = max(0.01, min(0.99, hy_2d + (dir_y / norm) * bat_len_2d))
+            conf = 0.75
+
+        # 3D barrel point matching 2D projection with realistic 0.85m physical bat length
+        d2d_x = bx_2d - hx_2d
+        d2d_y = -(by_2d - hy_2d)  # In 3D Cartesian, +Y is upward
+        d2d_len = math.hypot(d2d_x, d2d_y) or 1.0
+        z_prog = (idx - contact_idx) / 12.0
+        z_prog = max(-0.8, min(0.8, z_prog))
+        z_tilt = z_prog * 0.35
+
+        dir_3d_x = (d2d_x / d2d_len) * math.sqrt(max(0.1, 1.0 - z_tilt**2))
+        dir_3d_y = (d2d_y / d2d_len) * math.sqrt(max(0.1, 1.0 - z_tilt**2))
+        dir_3d_z = z_tilt
+
+        norm_3d = math.hypot(dir_3d_x, math.hypot(dir_3d_y, dir_3d_z)) or 1.0
+        bx = hx + (dir_3d_x / norm_3d) * 0.85
+        by = hy + (dir_3d_y / norm_3d) * 0.85
+        bz = hz + (dir_3d_z / norm_3d) * 0.85
 
         sx = hx + 0.75 * (bx - hx)
         sy = hy + 0.75 * (by - hy)

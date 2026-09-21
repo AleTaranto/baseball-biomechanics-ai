@@ -339,18 +339,64 @@ function renderVideoOverlay(frameIndex) {
     let b2d = bat.barrel_2d;
     let s2d = bat.sweet_spot_2d;
 
-    if (!h2d && fData.left_wrist && fData.right_wrist) {
+    // Anchor handle strictly to wrists if available
+    if (fData.left_wrist && fData.right_wrist && fData.left_wrist.x != null && fData.right_wrist.x != null) {
       h2d = {
         x: (fData.left_wrist.x + fData.right_wrist.x) / 2,
         y: (fData.left_wrist.y + fData.right_wrist.y) / 2
       };
+    } else if (!h2d && (fData.left_wrist || fData.right_wrist)) {
+      const w = fData.left_wrist || fData.right_wrist;
+      if (w.x != null && w.y != null) {
+        h2d = { x: w.x, y: w.y };
+      }
     }
-    if (!b2d && bat.barrel && h2d) {
+
+    // Estimate anatomical bat length from torso if available
+    let expectedBatLen = 0.22;
+    const lsh = fData.left_shoulder;
+    const rsh = fData.right_shoulder;
+    const lhp = fData.left_hip;
+    const rhp = fData.right_hip;
+    const torsoY1 = (lsh && lsh.y != null) ? lsh.y : (rsh && rsh.y != null ? rsh.y : null);
+    const torsoY2 = (lhp && lhp.y != null) ? lhp.y : (rhp && rhp.y != null ? rhp.y : null);
+    if (torsoY1 != null && torsoY2 != null) {
+      expectedBatLen = Math.max(0.14, Math.min(0.30, Math.abs(torsoY2 - torsoY1) * 1.05));
+    }
+
+    if (!b2d && h2d) {
+      const le = fData.left_elbow;
+      const re = fData.right_elbow;
+      const elbows = [le, re].filter(j => j && j.x != null && j.y != null);
+      let dirX, dirY;
+      if (elbows.length > 0) {
+        const ex = elbows.reduce((acc, j) => acc + j.x, 0) / elbows.length;
+        const ey = elbows.reduce((acc, j) => acc + j.y, 0) / elbows.length;
+        dirX = h2d.x - ex;
+        dirY = h2d.y - ey;
+      } else {
+        dirX = (currentBatterStance === 'LHB') ? -0.15 : 0.15;
+        dirY = -0.20;
+      }
+      const dirLen = Math.hypot(dirX, dirY) || 1.0;
       b2d = {
-        x: Math.max(0, Math.min(1, (bat.barrel.x / 2.0) + 0.5)),
-        y: Math.max(0, Math.min(1, 1.0 - (bat.barrel.y / 1.8)))
+        x: Math.max(0.01, Math.min(0.99, h2d.x + (dirX / dirLen) * expectedBatLen)),
+        y: Math.max(0.01, Math.min(0.99, h2d.y + (dirY / dirLen) * expectedBatLen))
       };
+    } else if (h2d && b2d) {
+      // Clamp 2D bat length so it never flies across the screen
+      const currentLen = Math.hypot(b2d.x - h2d.x, b2d.y - h2d.y);
+      if (currentLen > 0.35 || currentLen < 0.06) {
+        const clampedLen = Math.max(0.14, Math.min(0.28, currentLen > 0.35 ? expectedBatLen : currentLen));
+        const dirX = (b2d.x - h2d.x) / (currentLen || 1.0);
+        const dirY = (b2d.y - h2d.y) / (currentLen || 1.0);
+        b2d = {
+          x: Math.max(0.01, Math.min(0.99, h2d.x + dirX * clampedLen)),
+          y: Math.max(0.01, Math.min(0.99, h2d.y + dirY * clampedLen))
+        };
+      }
     }
+
     if (!s2d && h2d && b2d) {
       s2d = {
         x: h2d.x + 0.75 * (b2d.x - h2d.x),
@@ -879,8 +925,9 @@ function initThreeJS() {
   threeScene = new THREE.Scene();
   threeScene.background = new THREE.Color(0x090d16);
 
+  const initialBoxX = (currentBatterStance === 'LHB') ? 0.75 : -0.75;
   threeCamera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-  threeCamera.position.set(0, 1.2, 3.5);
+  threeCamera.position.set(initialBoxX, 1.25, 3.2);
 
   // Renderer
   threeRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -892,7 +939,7 @@ function initThreeJS() {
   threeControls = new THREE.OrbitControls(threeCamera, threeRenderer.domElement);
   threeControls.enableDamping = true;
   threeControls.dampingFactor = 0.05;
-  threeControls.target.set(0, 0.8, 0);
+  threeControls.target.set(initialBoxX, 0.85, 0);
 
   // Lighting
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
@@ -1189,6 +1236,13 @@ function setBatterStance(stance, rerunPipeline = false) {
 
   updateBatterBoxHighlight();
 
+  const newTargetBoxX = (stance === 'LHB') ? 0.75 : -0.75;
+  if (threeControls && threeCamera && !isCameraLocked) {
+    threeControls.target.set(newTargetBoxX, 0.85, 0);
+    threeCamera.position.x = newTargetBoxX;
+    threeControls.update();
+  }
+
   // Re-render current frame skeleton and bat in the updated box
   const curF = parseInt(document.getElementById('three-scrubber')?.value || '0');
   update3DSkeleton(curF);
@@ -1227,17 +1281,48 @@ function update3DSkeleton(frameIndex) {
   const isLHB = (currentBatterStance === 'LHB');
   const targetBoxX = isLHB ? 0.75 : -0.75;
 
-  // Scale and center landmark coordinates into active batter's box
+  // 1. Calculate floor grounding, athlete height & midpoints from keypoints
+  const leftAnkle = frame.left_ankle;
+  const rightAnkle = frame.right_ankle;
+  const validAnkles = [leftAnkle, rightAnkle].filter(j => j && j.y != null);
+  const floorY = validAnkles.length > 0
+    ? Math.max(...validAnkles.map(j => j.y))
+    : 0.88;
+
+  const validShoulders = [frame.left_shoulder, frame.right_shoulder].filter(j => j && j.y != null);
+  const topY = (frame.nose && frame.nose.y != null)
+    ? frame.nose.y
+    : (validShoulders.length > 0 ? Math.min(...validShoulders.map(j => j.y)) - 0.12 : 0.20);
+
+  const normHeight = Math.max(0.35, floorY - topY);
+  const realHeightMeters = 1.78; // adult athletic stature
+  const S = realHeightMeters / normHeight;
+
+  const validHips = [frame.left_hip, frame.right_hip].filter(j => j && j.x != null);
+  const midHipX = validHips.length > 0
+    ? validHips.reduce((acc, j) => acc + j.x, 0) / validHips.length
+    : (validShoulders.length > 0 ? validShoulders.reduce((acc, j) => acc + j.x, 0) / validShoulders.length : 0.5);
+
+  const midHipZ = validHips.length > 0
+    ? validHips.reduce((acc, j) => acc + (j.z || 0.0), 0) / validHips.length
+    : 0.0;
+
+  const videoAspect = (video && video.videoWidth && video.videoHeight)
+    ? (video.videoWidth / video.videoHeight)
+    : (16 / 9);
+
+  // 2. Scale & place landmarks anatomically grounded on ground plane (Y = 0)
   const coords = {};
   Object.keys(threeJointMeshes).forEach(name => {
     const joint = frame[name];
     const mesh = threeJointMeshes[name];
     if (joint && joint.x != null && joint.y != null) {
       mesh.visible = true;
-      const rawX = (joint.x - 0.5) * 2.0;
-      const x = isLHB ? (targetBoxX - rawX) : (targetBoxX + rawX);
-      const y = (1.0 - joint.y) * 1.8;
-      const z = (joint.z || 0.0) * -2.0;
+      const x = targetBoxX + (joint.x - midHipX) * videoAspect * S;
+      const y = Math.max(0.02, (floorY - joint.y) * S);
+      const rawZ = (joint.z != null ? joint.z : 0.0) - midHipZ;
+      const clampedZ = Math.max(-0.45, Math.min(0.45, rawZ));
+      const z = -clampedZ * S * 0.65;
       mesh.position.set(x, y, z);
       coords[name] = new THREE.Vector3(x, y, z);
     } else {
@@ -1276,32 +1361,48 @@ function update3DSkeleton(frameIndex) {
   const showBat = document.getElementById('toggle-3d-bat')?.checked ?? true;
   if (batGroup && showBat) {
     let pHandle, pBarrel;
-    if (frame.bat && frame.bat.handle && frame.bat.barrel) {
-      const hx = isLHB ? (targetBoxX - frame.bat.handle.x) : (targetBoxX + frame.bat.handle.x);
-      const bx = isLHB ? (targetBoxX - frame.bat.barrel.x) : (targetBoxX + frame.bat.barrel.x);
-      pHandle = new THREE.Vector3(hx, frame.bat.handle.y, frame.bat.handle.z);
-      pBarrel = new THREE.Vector3(bx, frame.bat.barrel.y, frame.bat.barrel.z);
-    } else if (wristMid) {
+    if (wristMid) {
       pHandle = wristMid.clone();
-      let batDir = elbowMid ? wristMid.clone().sub(elbowMid).normalize() : new THREE.Vector3(isLHB ? -0.5 : 0.5, 0.4, 0.6).normalize();
-      pBarrel = pHandle.clone().add(batDir.multiplyScalar(0.85));
+      if (frame.bat && frame.bat.barrel_2d) {
+        const b2d = frame.bat.barrel_2d;
+        const b3dX = targetBoxX + (b2d.x - midHipX) * videoAspect * S;
+        const b3dY = Math.max(0.05, (floorY - b2d.y) * S);
+        const b3dZ = pHandle.z;
+        const targetBarrel = new THREE.Vector3(b3dX, b3dY, b3dZ);
+        const batDir = new THREE.Vector3().subVectors(targetBarrel, pHandle);
+        if (batDir.lengthSq() > 0.001) {
+          pBarrel = pHandle.clone().add(batDir.normalize().multiplyScalar(0.85));
+        }
+      }
+      if (!pBarrel) {
+        let batDir = elbowMid
+          ? wristMid.clone().sub(elbowMid).normalize()
+          : new THREE.Vector3(isLHB ? 0.5 : -0.5, 0.4, 0.5).normalize();
+        pBarrel = pHandle.clone().add(batDir.multiplyScalar(0.85));
+      }
+    } else if (frame.bat && frame.bat.barrel_2d && frame.bat.handle_2d) {
+      const h2d = frame.bat.handle_2d;
+      const b2d = frame.bat.barrel_2d;
+      const h3dX = targetBoxX + (h2d.x - midHipX) * videoAspect * S;
+      const h3dY = Math.max(0.05, (floorY - h2d.y) * S);
+      pHandle = new THREE.Vector3(h3dX, h3dY, 0);
+      const b3dX = targetBoxX + (b2d.x - midHipX) * videoAspect * S;
+      const b3dY = Math.max(0.05, (floorY - b2d.y) * S);
+      const dir = new THREE.Vector3(b3dX - h3dX, b3dY - h3dY, 0).normalize();
+      pBarrel = pHandle.clone().add(dir.multiplyScalar(0.85));
     }
 
     if (pHandle && pBarrel) {
       batGroup.visible = true;
-      // Bat midpoint for position
       const midBat = new THREE.Vector3().addVectors(pHandle, pBarrel).multiplyScalar(0.5);
       batGroup.position.copy(midBat);
 
       const batVector = new THREE.Vector3().subVectors(pBarrel, pHandle);
-      const batLen = batVector.length() || 0.85;
       const batDirNorm = batVector.clone().normalize();
 
       const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), batDirNorm);
       batGroup.quaternion.copy(quat);
-
-      const scaleRatio = batLen / 0.85;
-      batGroup.scale.set(1, Math.max(0.7, Math.min(1.3, scaleRatio)), 1);
+      batGroup.scale.set(1, 1, 1);
     } else {
       batGroup.visible = false;
     }
@@ -1314,8 +1415,13 @@ function update3DSkeleton(frameIndex) {
   if (batTrailLine && showTrail && pipelineDataA && pipelineDataA.bat_trajectory_3d && pipelineDataA.bat_trajectory_3d.length > 0) {
     batTrailLine.visible = true;
     const trajPts = pipelineDataA.bat_trajectory_3d.slice(0, Math.min(frameIndex + 1, pipelineDataA.bat_trajectory_3d.length)).map(pt => {
-      const px = isLHB ? (targetBoxX - pt.x) : (targetBoxX + pt.x);
-      return new THREE.Vector3(px, pt.y, pt.z);
+      if (pt.x_2d != null && pt.y_2d != null) {
+        const px = targetBoxX + (pt.x_2d - midHipX) * videoAspect * S;
+        const py = Math.max(0.05, (floorY - pt.y_2d) * S);
+        const pz = pt.z != null ? -(pt.z - midHipZ) * S * 0.65 : 0;
+        return new THREE.Vector3(px, py, pz);
+      }
+      return new THREE.Vector3(targetBoxX + pt.x * 0.5, pt.y, pt.z);
     });
     if (trajPts.length >= 2) {
       batTrailLine.geometry.setFromPoints(trajPts);
@@ -1383,11 +1489,10 @@ function update3DSkeleton(frameIndex) {
 
   // 4. Camera Lock to Video Perspective & Athlete Tracking
   if (isCameraLocked && threeCamera && threeControls) {
-    const targetRoot = hipMid || new THREE.Vector3(targetBoxX, 0.8, 0);
-    const camXOffset = isLHB ? -0.1 : 0.1;
-    threeCamera.position.set(targetRoot.x + camXOffset, targetRoot.y + 0.35, targetRoot.z + 3.25);
+    const targetRoot = hipMid || new THREE.Vector3(targetBoxX, 0.85, 0);
+    threeCamera.position.set(targetRoot.x, targetRoot.y + 0.1, 3.2);
     threeControls.target.copy(targetRoot);
-    threeCamera.lookAt(targetRoot.x, targetRoot.y + 0.1, targetRoot.z);
+    threeCamera.lookAt(targetRoot.x, targetRoot.y, targetRoot.z);
   }
 }
 
@@ -1446,24 +1551,26 @@ function setCameraView(preset) {
   if (!threeCamera || !threeControls) return;
   if (isCameraLocked) toggleCameraLock();
 
-  const targetBoxX = (currentBatterStance === 'LHB') ? 0.75 : -0.75;
+  const isLHB = (currentBatterStance === 'LHB');
+  const targetBoxX = isLHB ? 0.75 : -0.75;
 
   if (preset === 'top') {
     // Top-down view (transverse plane)
-    threeCamera.position.set(targetBoxX * 0.5, 4.2, 0.1);
-    threeControls.target.set(targetBoxX * 0.5, 0.8, 0);
+    threeCamera.position.set(targetBoxX, 3.8, 0.01);
+    threeControls.target.set(targetBoxX, 0.85, 0);
   } else if (preset === 'front') {
     // Frontal / pitcher's eye view
-    threeCamera.position.set(targetBoxX, 1.2, 3.2);
-    threeControls.target.set(targetBoxX, 0.8, 0);
+    threeCamera.position.set(targetBoxX, 1.2, 3.0);
+    threeControls.target.set(targetBoxX, 0.85, 0);
   } else if (preset === 'side') {
-    // Side dugout view
-    threeCamera.position.set(3.4, 1.2, 0);
-    threeControls.target.set(targetBoxX, 0.8, 0);
+    // Side dugout view (looking open at batter)
+    const sideX = isLHB ? (targetBoxX - 2.8) : (targetBoxX + 2.8);
+    threeCamera.position.set(sideX, 1.1, 0);
+    threeControls.target.set(targetBoxX, 0.85, 0);
   } else if (preset === 'behind') {
     // Catcher / Behind plate view
-    threeCamera.position.set(targetBoxX, 1.2, -3.2);
-    threeControls.target.set(targetBoxX, 0.8, 0);
+    threeCamera.position.set(targetBoxX, 1.2, -3.0);
+    threeControls.target.set(targetBoxX, 0.85, 0);
   }
   threeControls.update();
 }
@@ -1472,8 +1579,8 @@ function resetCameraView() {
   if (!threeCamera || !threeControls) return;
   if (isCameraLocked) toggleCameraLock();
   const targetBoxX = (currentBatterStance === 'LHB') ? 0.75 : -0.75;
-  threeCamera.position.set(targetBoxX + 1.2, 1.6, 3.0);
-  threeControls.target.set(targetBoxX, 0.8, 0);
+  threeCamera.position.set(targetBoxX, 1.25, 3.2);
+  threeControls.target.set(targetBoxX, 0.85, 0);
   threeControls.update();
 }
 
