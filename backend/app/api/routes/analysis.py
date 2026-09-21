@@ -56,7 +56,7 @@ def _get_or_create_movement_and_kinematics(
 
     # Pose estimation
     pose_service = PoseEstimationService()
-    pose_resp = pose_service.estimate_poses(video_id=video_id)
+    pose_resp = pose_service.estimate_video(video_id=video_id)
 
     # Movement model & filtering
     raw_movement = MovementDataMapper.from_pose_estimation_response(
@@ -69,7 +69,7 @@ def _get_or_create_movement_and_kinematics(
     )
 
     # Kinematics
-    kinematic = KinematicAnalysisService().calculate_kinematics(movement)
+    kinematic = KinematicAnalysisService().build_recording(movement)
     kinematics_path.parent.mkdir(parents=True, exist_ok=True)
     kinematics_path.write_text(
         json.dumps(kinematic.model_dump(mode="json"), indent=2), encoding="utf-8"

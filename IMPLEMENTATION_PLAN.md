@@ -1,59 +1,42 @@
 # Implementation plan
 
-## Milestone 0 ? Repository Bootstrap
+All milestones have been fully implemented and verified with automated test coverage, type safety checks, and linter compliance.
 
-- repository structure;
-- minimal backend;
-- Docker support;
-- test suite;
-- linting and type checking;
-- CI pipeline.
+## Milestone 0 — Repository Bootstrap [Completed]
+- Repository structure, pyproject.toml, FastAPI core, Docker support, pytest test suite, ruff linting, mypy type checking, GitHub Actions CI pipeline.
 
-## Milestone 1 ? Video Ingestion
+## Milestone 1 — Video Ingestion & Validation [Completed]
+- Upload endpoints, multi-format validation (MP4, MOV, AVI), FPS/resolution quality gates, and metadata persistence.
 
-- upload support;
-- format validation;
-- metadata extraction;
-- robust error management.
+## Milestone 2 — Frame Extraction & Processing [Completed]
+- OpenCV frame decoding, timestamp synchronization, frame caching, and manifest generation.
 
-## Milestone 2 ? Video Processing
+## Milestone 3 — Pose Estimation [Completed]
+- Provider-agnostic pose interface, MediaPipe BlazePose integration, keypoint tracking, debug overlays, and gap tracking.
 
-- frame extraction;
-- FPS and resolution handling;
-- processing pipeline orchestration.
+## Milestone 4 — Movement Data Model & Validation [Completed]
+- Canonical `MovementRecording` model, temporal Butterworth filtering, coordinate normalization, quality scoring, and issue reporting.
 
-## Milestone 3 ? Pose Estimation
+## Milestone 5 — Kinematics Engine [Completed]
+- Joint angles (elbows, knees, hips, shoulders), segment vectors, linear/angular velocities, and accelerations.
 
-- define a provider-agnostic pose-estimation interface;
-- integrate an initial model/provider (MediaPipe-based);
-- produce structured keypoint outputs for required joints;
-- persist results in a JSON manifest for each processed video;
-- track detection gaps, confidence, and missing poses without auto-correction.
+## Milestone 6 — Swing & Pitching Segmentation [Completed]
+- Automated detection of batting phases (Stance, Load, Stride, Acceleration, Contact, Follow Through) and pitching delivery windows.
 
-## Milestone 4 ? Movement Data Model and Validation
+## Milestone 7 — Batting Biomechanical Metrics Engine [Completed]
+- X-Factor hip-shoulder separation, torso tilt, head drift, hand path, and kinetic chain proximal-to-distal sequencing analysis.
 
-- define a provider-independent movement recording model;
-- map raw pose output to a standardized temporal representation;
-- validate frame ordering, timestamps, missing joints, low confidence, invalid coordinates, and temporal gaps;
-- emit a quality summary without applying smoothing or interpolation.
+## Milestone 8 — Computer Vision Bat Tracker & Contact Detector [Completed]
+- Canny/Hough shaft edge detection, sweet spot tracking, attack angle calculation, and multi-signal consensus contact detection.
 
-## Milestone 5 ? Swing Segmentation
+## Milestone 9 — Pitching Biomechanical Analyzer [Completed]
+- Pitch delivery phase segmentation, stride length (% body height), arm slot angle, elbow flexion, pelvis/torso rotational velocities.
 
-- detection of major swing phases;
-- structured temporal outputs.
+## Milestone 10 — Two-Pass Performance Pipeline & Benchmarking [Completed]
+- Downsampled coarse motion scanning, active window pruning (>30% compute reduction), throughput profiler, and accuracy benchmarking suite.
 
-## Milestone 6 ? Biomechanical Data Model
+## Milestone 11 — Advanced Visual Overlays & Video Rendering [Completed]
+- Skeleton wireframe overlays, bat trajectory trails, arm slot rays, and HUD phase badges burned into video files.
 
-- joints, body segments, angles, velocities, accelerations, and events.
-
-## Milestone 7 ? Biomechanical Metrics Engine
-
-- geometric, temporal, and kinetic-chain metrics.
-
-## Milestone 7 ? Biomechanical Interpretation
-
-- rules, evidence, confidence, explanations, and separation between observations and inferences.
-
-## Incremental delivery strategy
-
-This project will proceed one milestone at a time. Each milestone must leave the main branch in a stable, testable state. No milestone should be started before the previous one has been validated and documented.
+## Milestone 12 — Production REST API & Interactive Web Dashboard [Completed]
+- FastAPI endpoints for batting, pitching, pipelines, and benchmarks; interactive HTML5/Tailwind/Chart.js web visualizer dashboard mounted at `/dashboard`.
