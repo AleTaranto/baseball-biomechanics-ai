@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Baseball Biomechanics AI — Analysis & Visualizer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+            },
+            accent: {
+              gold: '#f59e0b',
+              blue: '#3b82f6',
+              cyan: '#06b6d4',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .slider-thumb::-webkit-slider-thumb {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      background: #10b981;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans">
+
+  <!-- Navigation -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-tr from-emerald-600 to-cyan-500 flex items-center justify-center font-bold text-xl text-white shadow-lg shadow-emerald-900/40">
+          ⚾
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+            Baseball Biomechanics AI
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800">v0.1.0</span>
+          </h1>
+          <p class="text-xs text-slate-400">High-Precision Computer Vision & Kinetic Analysis</p>
+        </div>
+      </div>
+
+      <!-- Action mode tabs -->
+      <div class="flex items-center space-x-2 bg-slate-950 p-1 rounded-lg border border-slate-800">
+        <button id="tab-batting" class="px-4 py-1.5 rounded-md text-xs font-medium bg-emerald-600 text-white shadow transition" onclick="switchMode('batting')">
+          Batting Analysis
+        </button>
+        <button id="tab-pitching" class="px-4 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 transition" onclick="switchMode('pitching')">
+          Pitching Analysis
+        </button>
+        <button id="tab-benchmarks" class="px-4 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 transition" onclick="switchMode('benchmarks')">
+          Strategy Benchmarks
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- Left Column: Video Player & Overlays (8 Cols) -->
+    <section class="lg:col-span-8 flex flex-col space-y-4">
+      <!-- Player Container -->
+      <div class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-xl flex flex-col">
+        <!-- Visualizer Area -->
+        <div class="relative bg-black aspect-video flex items-center justify-center group overflow-hidden">
+          <video id="video-element" class="w-full h-full object-contain" playsinline preload="auto">
+            <source src="" type="video/mp4">
+          </video>
+          <canvas id="overlay-canvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
+
+          <!-- Empty State Prompt -->
+          <div id="empty-state" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90 text-slate-400 p-6 text-center">
+            <div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-2xl mb-4 text-emerald-400">
+              📹
+            </div>
+            <h3 class="text-base font-semibold text-white">No Video Loaded</h3>
+            <p class="text-xs text-slate-400 max-w-sm mt-1">Upload a high-speed swing or pitching video to extract kinematics, trajectory trails, and phase segmentation.</p>
+            <div class="mt-4 flex gap-2">
+              <label class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium cursor-pointer transition shadow">
+                Choose Video File
+                <input type="file" id="video-input" class="hidden" accept="video/*">
+              </label>
+            </div>
+          </div>
+
+          <!-- Phase & Release Banner Overlay HUD -->
+          <div id="hud-badge" class="absolute top-4 right-4 hidden bg-slate-900/90 border border-emerald-500/50 text-emerald-400 px-3 py-1 rounded text-xs font-bold uppercase tracking-wider backdrop-blur">
+            PHASE: DOWNSWING
+          </div>
+          <div id="hud-flash" class="absolute top-12 left-1/2 -translate-x-1/2 hidden bg-red-600/90 border-2 border-amber-400 text-white px-5 py-1.5 rounded-lg text-sm font-extrabold uppercase tracking-widest shadow-2xl backdrop-blur animate-pulse">
+            >> IMPACT / CONTACT <<
+          </div>
+        </div>
+
+        <!-- Playback Controls Bar -->
+        <div class="p-4 bg-slate-900 border-t border-slate-800 flex flex-col space-y-3">
+          <!-- Timeline Scrubber -->
+          <div class="flex items-center space-x-3">
+            <span id="time-current" class="text-xs font-mono text-slate-400">0.00s</span>
+            <input type="range" id="frame-scrubber" min="0" max="100" value="0" step="1" class="flex-1 slider-thumb h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+            <span id="frame-counter" class="text-xs font-mono text-emerald-400">Frame 0/0</span>
+          </div>
+
+          <!-- Control Buttons -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <button id="btn-step-back" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition" title="Step Back 1 Frame">
+                ⏮ -1F
+              </button>
+              <button id="btn-play-pause" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition">
+                ▶ Play
+              </button>
+              <button id="btn-step-fwd" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition" title="Step Forward 1 Frame">
+                +1F ⏭
+              </button>
+              <div class="h-4 w-px bg-slate-700 mx-2"></div>
+              <select id="playback-speed" class="bg-slate-800 border border-slate-700 text-xs rounded-lg px-2 py-1.5 text-slate-300 focus:outline-none focus:border-emerald-500">
+                <option value="0.25">0.25x (Slow-Mo)</option>
+                <option value="0.5" selected>0.5x</option>
+                <option value="1.0">1.0x (Realtime)</option>
+              </select>
+            </div>
+
+            <!-- Layer Toggles -->
+            <div class="flex items-center space-x-2 text-xs">
+              <label class="flex items-center space-x-1.5 cursor-pointer bg-slate-800 px-2 py-1 rounded text-slate-300 hover:text-white">
+                <input type="checkbox" id="toggle-skeleton" checked class="rounded accent-emerald-500">
+                <span>Skeleton</span>
+              </label>
+              <label class="flex items-center space-x-1.5 cursor-pointer bg-slate-800 px-2 py-1 rounded text-slate-300 hover:text-white">
+                <input type="checkbox" id="toggle-trail" checked class="rounded accent-emerald-500">
+                <span>Motion Trail</span>
+              </label>
+              <label class="flex items-center space-x-1.5 cursor-pointer bg-slate-800 px-2 py-1 rounded text-slate-300 hover:text-white">
+                <input type="checkbox" id="toggle-hud" checked class="rounded accent-emerald-500">
+                <span>HUD Metrics</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Kinematic Plots Panel -->
+      <div class="bg-slate-900 rounded-xl border border-slate-800 p-4 shadow-xl">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300">Kinematic Curves Over Time</h3>
+          <span class="text-xs text-slate-400 font-mono">120 FPS Normalized Timeline</span>
+        </div>
+        <div class="h-48 w-full">
+          <canvas id="kinematics-chart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Metrics & Pipeline Controls (4 Cols) -->
+    <aside class="lg:col-span-4 flex flex-col space-y-4">
+
+      <!-- Pipeline Execution Card -->
+      <div class="bg-slate-900 rounded-xl border border-slate-800 p-5 shadow-xl">
+        <h2 class="text-sm font-bold text-white mb-3 flex items-center justify-between">
+          Pipeline Controls
+          <span id="pipeline-status-badge" class="text-xs font-normal px-2 py-0.5 rounded bg-slate-800 text-slate-400">Idle</span>
+        </h2>
+        <div class="space-y-3 text-xs">
+          <div>
+            <label class="block text-slate-400 mb-1">Execution Strategy</label>
+            <select id="select-strategy" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200">
+              <option value="full">Strategy A: Full 120 FPS Pose Inference (Baseline)</option>
+              <option value="half_rate">Strategy D: Half-Rate Temporal Pose Sampling</option>
+              <option value="two_pass" selected>Strategy F: Two-Pass Motion Energy & Window Pruning</option>
+            </select>
+          </div>
+          <div class="flex gap-2">
+            <button id="btn-run-pipeline" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 font-semibold text-white rounded-lg shadow transition text-center" onclick="triggerPipeline()">
+              ⚡ Run Analysis
+            </button>
+            <button id="btn-run-benchmark" class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition" title="Compare all strategies" onclick="triggerBenchmark()">
+              📊 Benchmark
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Biomechanical KPI Cards (Batting Mode) -->
+      <div id="batting-kpis" class="bg-slate-900 rounded-xl border border-slate-800 p-5 shadow-xl space-y-4">
+        <h2 class="text-sm font-bold text-white flex items-center justify-between border-b border-slate-800 pb-2">
+          Batting Biomechanics
+          <span class="text-xs font-mono text-emerald-400" id="contact-frame-display">Contact: Frame --</span>
+        </h2>
+
+        <div class="grid grid-cols-2 gap-3">
+          <!-- X-Factor Separation -->
+          <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
+            <span class="text-xs text-slate-400">Max X-Factor (Hip-Shoulder)</span>
+            <div class="text-xl font-extrabold text-white mt-1" id="val-xfactor">--°</div>
+            <span class="text-[10px] text-emerald-400">Rotational Stretch</span>
+          </div>
+          <!-- Bat Speed -->
+          <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
+            <span class="text-xs text-slate-400">Peak Barrel Speed</span>
+            <div class="text-xl font-extrabold text-white mt-1" id="val-barrel-speed">-- px/s</div>
+            <span class="text-[10px] text-cyan-400">Sweet Spot Velocity</span>
+          </div>
+          <!-- Vertical Attack Angle -->
+          <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
+            <span class="text-xs text-slate-400">Vertical Attack Angle</span>
+            <div class="text-xl font-extrabold text-white mt-1" id="val-attack-angle">--°</div>
+            <span class="text-[10px] text-slate-400">Angle at Impact</span>
+          </div>
+          <!-- Head Drift -->
+          <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
+            <span class="text-xs text-slate-400">Head Drift</span>
+            <div class="text-xl font-extrabold text-white mt-1" id="val-head-drift">--</div>
+            <span class="text-[10px] text-slate-400">Displacement from Stance</span>
+          </div>
+        </div>
+
+        <!-- Kinematic Sequencing Status -->
+        <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-slate-400">Kinematic Sequencing</span>
+            <span id="badge-sequencing" class="text-xs px-2 py-0.5 rounded font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800">
+              Pelvis → Torso → Hands
+            </span>
+          </div>
+          <div class="w-full bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
+            <div class="bg-emerald-500 h-full w-full"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Biomechanical KPI Cards (Pitching Mode) -->
+      <div id="pitching-kpis" class="bg-slate-900 rounded-xl border border-slate-800 p-5 shadow-xl space-y-4 hidden">
+        <h2 class="text-sm font-bold text-white flex items-center justify-between border-b border-slate-800 pb-2">
+          Pitching Biomechanics
+          <span class="text-xs font-mono text-cyan-400" id="release-frame-display">Release: Frame --</span>
+        </h2>
+
+        <div class="grid grid-cols-2 gap-3">
+          <!-- Handedness -->
+          <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
+            <span class="text-xs text-slate-400">Pitcher Handedness</span>
+            <div class="text-xl font-extrabold text-cyan-400 mt-1" id="val-pitch-handedness">--</div>
+            <span class="text-[10px] text-slate-400">Auto-detected</span>
+          </div>
+          <!-- Arm Slot -->
+          <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
+            <span class="text-xs text-slate-400">Arm Slot Angle</span>
+            <div class="text-xl font-extrabold text-white mt-1" id="val-arm-slot">--°</div>
+            <span class="text-[10px] text-amber-400">At Ball Release</span>
+          </div>
+          <!-- Stride Length -->
+          <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
+            <span class="text-xs text-slate-400">Stride Length</span>
+            <div class="text-xl font-extrabold text-white mt-1" id="val-stride-len">--</div>
+            <span class="text-[10px] text-slate-400">At Foot Strike</span>
+          </div>
+          <!-- Lead Knee Flexion -->
+          <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
+            <span class="text-xs text-slate-400">Lead Knee Angle</span>
+            <div class="text-xl font-extrabold text-white mt-1" id="val-knee-angle">--°</div>
+            <span class="text-[10px] text-emerald-400">Knee Block</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Strategy Comparison / Benchmark Results -->
+      <div id="benchmark-results" class="bg-slate-900 rounded-xl border border-slate-800 p-5 shadow-xl hidden space-y-3">
+        <h2 class="text-sm font-bold text-white border-b border-slate-800 pb-2">
+          Optimization Benchmark Report
+        </h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400">
+                <th class="py-1.5">Strategy</th>
+                <th class="py-1.5">FPS</th>
+                <th class="py-1.5">Speedup</th>
+                <th class="py-1.5">Δ Contact</th>
+              </tr>
+            </thead>
+            <tbody id="benchmark-tbody">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </aside>
+  </main>
+
+  <script src="/dashboard/app.js"></script>
+</body>
+</html>
