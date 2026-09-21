@@ -443,3 +443,89 @@ def test_render_bat_overlay_and_action_hud() -> None:
     )
     assert np.any(hud_annotated > 0)
 
+
+def test_render_pitching_overlay_and_action_hud() -> None:
+    from app.schemas.pitching import (
+        PitchingAnalysisResult,
+        PitchingBiomechanicalMetrics,
+        PitchingDeliveryWindow,
+        PitchingPhase,
+        PitchingPhaseType,
+    )
+
+    image = np.zeros((200, 200, 3), dtype=np.uint8)
+    frame = FramePose(
+        frame_index=10,
+        timestamp_seconds=0.33,
+        detected=True,
+        joints={
+            "right_wrist": _make_joint(x=0.6, y=0.4),
+            "left_wrist": _make_joint(x=0.4, y=0.4),
+            "right_shoulder": _make_joint(x=0.55, y=0.35),
+            "right_elbow": _make_joint(x=0.6, y=0.4),
+            "left_ankle": _make_joint(x=0.35, y=0.85),
+            "right_ankle": _make_joint(x=0.55, y=0.85),
+        },
+    )
+
+    pitching_res = PitchingAnalysisResult(
+        video_id="pitch_overlay_test",
+        delivery_detected=True,
+        delivery_window=PitchingDeliveryWindow(
+            start_frame=0,
+            end_frame=20,
+            duration_seconds=0.66,
+            foot_strike_frame=7,
+            release_frame=10,
+            peak_hand_speed=2.5,
+            phases=[
+                PitchingPhase(
+                    phase_name=PitchingPhaseType.RELEASE,
+                    start_frame=9,
+                    end_frame=11,
+                    start_time_seconds=0.30,
+                    end_time_seconds=0.36,
+                    duration_seconds=0.06,
+                )
+            ],
+        ),
+        metrics=PitchingBiomechanicalMetrics(
+            handedness="RHP",
+            stride_length_normalized=0.45,
+            arm_slot_angle_deg=45.0,
+            lead_knee_angle_at_foot_strike=130.0,
+            lead_knee_angle_at_release=140.0,
+        ),
+    )
+
+    # Test HUD rendering with pitching badges, readouts, and release banner
+    hud_img = InspectionService.render_action_hud(
+        image=image.copy(),
+        frame_index=10,
+        width=200,
+        pitching_result=pitching_res,
+    )
+    assert np.any(hud_img > 0)
+
+    # Test pitching overlay with arm slot and wrist trail
+    overlay_img = InspectionService.render_pitching_overlay(
+        image=image.copy(),
+        frame=frame,
+        pitching_result=pitching_res,
+        recent_wrist_pts=[(100, 80), (120, 80)],
+        width=200,
+        height=200,
+    )
+    assert np.any(overlay_img > 0)
+
+    # Test full frame overlay integration
+    full_overlay = InspectionService.render_frame_overlay(
+        image=image.copy(),
+        movement_frame=frame,
+        kinematic_frame=None,
+        pitching_result=pitching_res,
+        recent_wrist_pts=[(100, 80), (120, 80)],
+    )
+    assert np.any(full_overlay > 0)
+
+

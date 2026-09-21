@@ -17,6 +17,7 @@ from app.schemas.batting import BattingMetricsResult
 from app.schemas.contact import ContactDetectionResult
 from app.schemas.kinematics import AngleMetric, KinematicFrame, KinematicRecording, VelocityMetric
 from app.schemas.movement import FramePose, JointObservation, MovementRecording
+from app.schemas.pitching import PitchingAnalysisResult
 from app.schemas.segmentation import SwingSegmentationResult
 
 ANGLE_LABELS = [
@@ -372,15 +373,27 @@ class InspectionService:
         segmentation: SwingSegmentationResult | None = None,
         contact_result: ContactDetectionResult | None = None,
         batting_metrics: BattingMetricsResult | None = None,
+        pitching_result: PitchingAnalysisResult | None = None,
     ) -> np.ndarray:
-        """Render real-time HUD with phase badges, contact flash, and X-factor separation."""
-        # 1. Swing phase badge (top right)
+        """Render real-time HUD with phase badges, contact/release flash, and metric readouts."""
+        # 1. Action phase badge (top right)
         current_phase = None
         if segmentation is not None and segmentation.candidate_swings:
             first_swing = segmentation.candidate_swings[0]
             for phase in first_swing.phases:
                 if phase.start_frame <= frame_index <= phase.end_frame:
                     raw_val = getattr(phase.phase, "value", str(phase.phase))
+                    current_phase = str(raw_val).upper()
+                    break
+
+        if (
+            current_phase is None
+            and pitching_result is not None
+            and pitching_result.delivery_window
+        ):
+            for p in pitching_result.delivery_window.phases:
+                if p.start_frame <= frame_index <= p.end_frame:
+                    raw_val = getattr(p.phase_name, "value", str(p.phase_name))
                     current_phase = str(raw_val).upper()
                     break
 
@@ -402,7 +415,7 @@ class InspectionService:
                 cv2.LINE_AA,
             )
 
-        # 2. Real-time X-Factor separation
+        # 2. Real-time Batting X-Factor separation
         if batting_metrics is not None and batting_metrics.frame_metrics:
             for fm in batting_metrics.frame_metrics:
                 if fm.frame_index == frame_index and fm.shoulder_hip_separation_deg is not None:
@@ -419,7 +432,34 @@ class InspectionService:
                     )
                     break
 
-        # 3. Contact / Impact flash banner
+        # 3. Real-time Pitching HUD metrics
+        if pitching_result is not None and pitching_result.metrics:
+            p_metrics = pitching_result.metrics
+            y_off = 64
+            cv2.putText(
+                image,
+                f"Pitcher: {p_metrics.handedness}",
+                (12, y_off),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                (0, 255, 255),
+                1,
+                cv2.LINE_AA,
+            )
+            if p_metrics.arm_slot_angle_deg is not None:
+                y_off += 22
+                cv2.putText(
+                    image,
+                    f"Arm Slot: {p_metrics.arm_slot_angle_deg:.1f} deg",
+                    (12, y_off),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.55,
+                    (0, 255, 255),
+                    1,
+                    cv2.LINE_AA,
+                )
+
+        # 4. Batting Contact flash banner
         if contact_result is not None:
             if abs(frame_index - contact_result.contact_frame) <= 1:
                 banner_text = ">> IMPACT / CONTACT <<"
@@ -441,6 +481,124 @@ class InspectionService:
                     cv2.LINE_AA,
                 )
 
+        # 5. Pitching Ball Release flash banner
+        if (
+            pitching_result is not None
+            and pitching_result.delivery_window
+            and pitching_result.delivery_window.release_frame is not None
+        ):
+            rel_frame = pitching_result.delivery_window.release_frame
+            if abs(frame_index - rel_frame) <= 1:
+                spd_str = (
+                    f" ({pitching_result.delivery_window.peak_hand_speed:.1f} px/s)"
+                    if pitching_result.delivery_window.peak_hand_speed
+                    else ""
+                )
+                p_banner = f">> BALL RELEASE{spd_str} <<"
+                (bw, bh), _ = cv2.getTextSize(p_banner, cv2.FONT_HERSHEY_SIMPLEX, 0.85, 2)
+                cx = (width - bw) // 2
+                cy = 40
+                p_r1 = (cx - 12, cy - bh - 6)
+                p_r2 = (cx + bw + 12, cy + 8)
+                cv2.rectangle(image, p_r1, p_r2, (160, 60, 0), -1)
+                cv2.rectangle(image, p_r1, p_r2, (255, 200, 0), 2)
+                cv2.putText(
+                    image,
+                    p_banner,
+                    (cx, cy),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.85,
+                    (255, 255, 255),
+                    2,
+                    cv2.LINE_AA,
+                )
+
+        return image
+
+    @staticmethod
+    def render_pitching_overlay(
+        image: np.ndarray,
+        frame: FramePose,
+        *,
+        pitching_result: PitchingAnalysisResult | None = None,
+        recent_wrist_pts: list[tuple[int, int]] | None = None,
+        width: int,
+        height: int,
+    ) -> np.ndarray:
+        """Render pitching-specific trajectory trails, stride baseline, and arm slot ray."""
+        if pitching_result is None or not pitching_result.delivery_detected:
+            return image
+
+        # 1. Throwing hand motion trail
+        if recent_wrist_pts and len(recent_wrist_pts) > 1:
+            n_pts = len(recent_wrist_pts)
+            for i in range(1, n_pts):
+                alpha = i / n_pts
+                thickness = max(1, int(4 * alpha))
+                color = (int(255 * alpha), int(180 * alpha), 0)
+                cv2.line(image, recent_wrist_pts[i - 1], recent_wrist_pts[i], color, thickness)
+
+        dw = pitching_result.delivery_window
+        if dw is None:
+            return image
+
+        def _get_pt(j_name: str) -> tuple[int, int] | None:
+            j = frame.joints.get(j_name)
+            if (
+                j is not None
+                and getattr(j, "detected", True)
+                and j.x is not None
+                and j.y is not None
+            ):
+                return InspectionService.normalized_to_pixel(j.x, j.y, width=width, height=height)
+            return None
+
+        handedness = pitching_result.metrics.handedness if pitching_result.metrics else "RHP"
+        lead_prefix = "left" if handedness == "RHP" else "right"
+        trail_prefix = "right" if handedness == "RHP" else "left"
+
+        # 2. Stride baseline indicator at foot strike
+        if dw.foot_strike_frame is not None and abs(frame.frame_index - dw.foot_strike_frame) <= 1:
+            p_lead = _get_pt(f"{lead_prefix}_ankle")
+            p_trail = _get_pt(f"{trail_prefix}_ankle")
+            if p_lead and p_trail:
+                cv2.line(image, p_lead, p_trail, (0, 255, 255), 2, cv2.LINE_AA)
+                mid_x = (p_lead[0] + p_trail[0]) // 2
+                mid_y = (p_lead[1] + p_trail[1]) // 2 + 18
+                cv2.putText(
+                    image,
+                    "STRIDE",
+                    (mid_x - 22, mid_y),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.45,
+                    (0, 255, 255),
+                    1,
+                    cv2.LINE_AA,
+                )
+
+        # 3. Arm slot vector at ball release
+        if dw.release_frame is not None and abs(frame.frame_index - dw.release_frame) <= 1:
+            p_sh = _get_pt(f"{trail_prefix}_shoulder")
+            p_el = _get_pt(f"{trail_prefix}_elbow")
+            if p_sh and p_el:
+                cv2.line(image, p_sh, p_el, (0, 165, 255), 3, cv2.LINE_AA)
+                slot_deg = (
+                    pitching_result.metrics.arm_slot_angle_deg
+                    if pitching_result.metrics
+                    else None
+                )
+                slot_txt = f"Slot: {slot_deg:.0f} deg" if slot_deg is not None else "Arm Slot"
+                cv2.putText(
+                    image,
+                    slot_txt,
+                    (p_el[0] + 8, p_el[1] - 8),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (0, 165, 255),
+                    2,
+                    cv2.LINE_AA,
+                )
+
         return image
 
     @staticmethod
@@ -455,6 +613,8 @@ class InspectionService:
         segmentation: SwingSegmentationResult | None = None,
         contact_result: ContactDetectionResult | None = None,
         batting_metrics: BattingMetricsResult | None = None,
+        pitching_result: PitchingAnalysisResult | None = None,
+        recent_wrist_pts: list[tuple[int, int]] | None = None,
     ) -> np.ndarray:
         height, width = image.shape[:2]
         if mode in ("RAW", "RAW+FILTERED"):
@@ -489,6 +649,14 @@ class InspectionService:
             width=width,
             height=height,
         )
+        image = InspectionService.render_pitching_overlay(
+            image,
+            movement_frame,
+            pitching_result=pitching_result,
+            recent_wrist_pts=recent_wrist_pts,
+            width=width,
+            height=height,
+        )
         image = InspectionService.render_metadata(image, movement_frame, mode=mode)
         image = InspectionService.render_action_hud(
             image,
@@ -497,6 +665,7 @@ class InspectionService:
             segmentation=segmentation,
             contact_result=contact_result,
             batting_metrics=batting_metrics,
+            pitching_result=pitching_result,
         )
         return image
 
@@ -665,6 +834,7 @@ class InspectionService:
         segmentation: SwingSegmentationResult | None = None,
         contact_result: ContactDetectionResult | None = None,
         batting_metrics: BattingMetricsResult | None = None,
+        pitching_result: PitchingAnalysisResult | None = None,
     ) -> Path:
         frame_dir = Path(extracted_frames_dir)
         target = Path(output_path)
@@ -707,6 +877,16 @@ class InspectionService:
             else {}
         )
         recent_barrel_pts: list[tuple[int, int]] = []
+        recent_wrist_pts: list[tuple[int, int]] = []
+        throw_wrist_key = (
+            "right_wrist"
+            if (
+                not pitching_result
+                or not pitching_result.metrics
+                or pitching_result.metrics.handedness == "RHP"
+            )
+            else "left_wrist"
+        )
 
         try:
             for frame_file in frame_files:
@@ -738,6 +918,22 @@ class InspectionService:
                 elif not bat_det or not bat_det.detected:
                     recent_barrel_pts.clear()
 
+                if pitching_result is not None and movement_frame is not None:
+                    jw = movement_frame.joints.get(throw_wrist_key)
+                    if (
+                        jw
+                        and getattr(jw, "detected", True)
+                        and jw.x is not None
+                        and jw.y is not None
+                    ):
+                        pw = InspectionService.normalized_to_pixel(
+                            jw.x, jw.y, width=width, height=height
+                        )
+                        if pw:
+                            recent_wrist_pts.append(pw)
+                            if len(recent_wrist_pts) > 8:
+                                recent_wrist_pts.pop(0)
+
                 if movement_frame is not None:
                     image = InspectionService.render_frame_overlay(
                         image=image,
@@ -749,6 +945,8 @@ class InspectionService:
                         segmentation=segmentation,
                         contact_result=contact_result,
                         batting_metrics=batting_metrics,
+                        pitching_result=pitching_result,
+                        recent_wrist_pts=list(recent_wrist_pts),
                     )
                 video_writer.write(image)
         finally:
@@ -767,6 +965,7 @@ class InspectionService:
         segmentation: SwingSegmentationResult | None = None,
         contact_result: ContactDetectionResult | None = None,
         batting_metrics: BattingMetricsResult | None = None,
+        pitching_result: PitchingAnalysisResult | None = None,
     ) -> dict[str, Path | str]:
         base_dir = Path(output_dir)
         base_dir.mkdir(parents=True, exist_ok=True)
@@ -783,6 +982,16 @@ class InspectionService:
             else {}
         )
         recent_barrel_pts: list[tuple[int, int]] = []
+        recent_wrist_pts: list[tuple[int, int]] = []
+        throw_wrist_key = (
+            "right_wrist"
+            if (
+                not pitching_result
+                or not pitching_result.metrics
+                or pitching_result.metrics.handedness == "RHP"
+            )
+            else "left_wrist"
+        )
 
         for frame in sorted(movement.frames, key=lambda item: item.frame_index):
             frame_file = Path(extracted_frames_dir) / f"frame_{frame.frame_index:06d}.png"
@@ -807,6 +1016,15 @@ class InspectionService:
             elif not bat_det or not bat_det.detected:
                 recent_barrel_pts.clear()
 
+            if pitching_result is not None:
+                jw = frame.joints.get(throw_wrist_key)
+                if jw and getattr(jw, "detected", True) and jw.x is not None and jw.y is not None:
+                    pw = InspectionService.normalized_to_pixel(jw.x, jw.y, width=w, height=h)
+                    if pw:
+                        recent_wrist_pts.append(pw)
+                        if len(recent_wrist_pts) > 8:
+                            recent_wrist_pts.pop(0)
+
             kinematic_frame = next(
                 (item for item in kinematic.frames if item.frame_index == frame.frame_index),
                 None,
@@ -821,6 +1039,8 @@ class InspectionService:
                 segmentation=segmentation,
                 contact_result=contact_result,
                 batting_metrics=batting_metrics,
+                pitching_result=pitching_result,
+                recent_wrist_pts=list(recent_wrist_pts),
             )
             cv2.imwrite(str(frame_dir / f"frame_{frame.frame_index:06d}.png"), annotated)
 
@@ -835,6 +1055,7 @@ class InspectionService:
             segmentation=segmentation,
             contact_result=contact_result,
             batting_metrics=batting_metrics,
+            pitching_result=pitching_result,
         )
 
         angle_path, velocity_path = InspectionService.render_temporal_plots(
