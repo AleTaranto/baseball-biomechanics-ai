@@ -236,13 +236,53 @@ class InspectionService:
         return image
 
     @staticmethod
+    def render_raw_overlay(
+        image: np.ndarray,
+        frame: FramePose,
+        *,
+        width: int,
+        height: int,
+        as_ghost: bool = True,
+    ) -> np.ndarray:
+        color = (128, 128, 128) if as_ghost else (0, 165, 255)
+        thickness = 1 if as_ghost else 2
+        radius = 3 if as_ghost else 5
+        for start_joint, end_joint in SKELETON_CONNECTIONS:
+            s = frame.joints.get(start_joint)
+            e = frame.joints.get(end_joint)
+            if s is None or e is None:
+                continue
+            sx = s.raw_x if s.raw_x is not None else s.x
+            sy = s.raw_y if s.raw_y is not None else s.y
+            ex = e.raw_x if e.raw_x is not None else e.x
+            ey = e.raw_y if e.raw_y is not None else e.y
+            if sx is None or sy is None or ex is None or ey is None:
+                continue
+            sp = InspectionService.normalized_to_pixel(sx, sy, width=width, height=height)
+            ep = InspectionService.normalized_to_pixel(ex, ey, width=width, height=height)
+            if sp is not None and ep is not None:
+                cv2.line(image, sp, ep, color, thickness)
+
+        for joint in frame.joints.values():
+            rx = joint.raw_x if joint.raw_x is not None else joint.x
+            ry = joint.raw_y if joint.raw_y is not None else joint.y
+            if rx is None or ry is None:
+                continue
+            p = InspectionService.normalized_to_pixel(rx, ry, width=width, height=height)
+            if p is not None:
+                cv2.circle(image, p, radius, color, -1)
+        return image
+
+    @staticmethod
     def render_metadata(
         image: np.ndarray,
         frame: FramePose,
+        *,
+        mode: str = "FILTERED",
     ) -> np.ndarray:
         cv2.putText(
             image,
-            f"frame_index={frame.frame_index}",
+            f"frame_index={frame.frame_index}  mode={mode}",
             (12, 20),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.55,
@@ -268,15 +308,27 @@ class InspectionService:
         image: np.ndarray,
         movement_frame: FramePose,
         kinematic_frame: KinematicFrame | None,
+        mode: str = "FILTERED",
     ) -> np.ndarray:
         height, width = image.shape[:2]
-        image = InspectionService.render_skeleton(image, movement_frame, width=width, height=height)
-        image = InspectionService.render_joint_markers(
-            image,
-            movement_frame,
-            width=width,
-            height=height,
-        )
+        if mode in ("RAW", "RAW+FILTERED"):
+            image = InspectionService.render_raw_overlay(
+                image,
+                movement_frame,
+                width=width,
+                height=height,
+                as_ghost=(mode == "RAW+FILTERED"),
+            )
+        if mode in ("FILTERED", "RAW+FILTERED"):
+            image = InspectionService.render_skeleton(
+                image, movement_frame, width=width, height=height
+            )
+            image = InspectionService.render_joint_markers(
+                image,
+                movement_frame,
+                width=width,
+                height=height,
+            )
         image = InspectionService.render_angle_annotations(
             image,
             movement_frame,
@@ -284,7 +336,7 @@ class InspectionService:
             width=width,
             height=height,
         )
-        image = InspectionService.render_metadata(image, movement_frame)
+        image = InspectionService.render_metadata(image, movement_frame, mode=mode)
         return image
 
     @staticmethod
@@ -447,6 +499,7 @@ class InspectionService:
         kinematic: KinematicRecording,
         extracted_frames_dir: str | Path,
         output_path: str | Path,
+        mode: str = "FILTERED",
     ) -> Path:
         frame_dir = Path(extracted_frames_dir)
         target = Path(output_path)
@@ -502,6 +555,7 @@ class InspectionService:
                         image=image,
                         movement_frame=movement_frame,
                         kinematic_frame=kinematic_frame,
+                        mode=mode,
                     )
                 video_writer.write(image)
         finally:
@@ -515,6 +569,7 @@ class InspectionService:
         kinematic: KinematicRecording,
         extracted_frames_dir: str | Path,
         output_dir: str | Path,
+        mode: str = "FILTERED",
     ) -> dict[str, Path | str]:
         base_dir = Path(output_dir)
         base_dir.mkdir(parents=True, exist_ok=True)
@@ -540,6 +595,7 @@ class InspectionService:
                 image=image,
                 movement_frame=frame,
                 kinematic_frame=kinematic_frame,
+                mode=mode,
             )
             cv2.imwrite(str(frame_dir / f"frame_{frame.frame_index:06d}.png"), annotated)
 
@@ -549,6 +605,7 @@ class InspectionService:
             kinematic=kinematic,
             extracted_frames_dir=extracted_frames_dir,
             output_path=overlay_video,
+            mode=mode,
         )
 
         angle_path, velocity_path = InspectionService.render_temporal_plots(

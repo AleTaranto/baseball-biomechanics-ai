@@ -326,3 +326,42 @@ def test_overlay_video_preserves_source_fps(tmp_path, fps: float) -> None:
     actual_fps = capture.get(cv2.CAP_PROP_FPS)
     assert actual_fps == pytest.approx(fps, rel=1e-2)
     capture.release()
+
+
+def test_render_frame_overlay_supports_raw_and_filtered_modes() -> None:
+    image = np.zeros((100, 100, 3), dtype=np.uint8)
+    frame = FramePose(
+        frame_index=1,
+        timestamp_seconds=0.01,
+        detected=True,
+        joints={
+            "left_shoulder": JointObservation(
+                joint_name="left_shoulder",
+                x=0.4,
+                y=0.3,
+                raw_x=0.42,
+                raw_y=0.28,
+                filtered=True,
+            ),
+            "left_elbow": JointObservation(
+                joint_name="left_elbow",
+                x=0.4,
+                y=0.5,
+                raw_x=0.41,
+                raw_y=0.52,
+                filtered=True,
+            ),
+        },
+    )
+
+    for mode in ["FILTERED", "RAW", "RAW+FILTERED"]:
+        annotated = InspectionService.render_frame_overlay(
+            image=image.copy(),
+            movement_frame=frame,
+            kinematic_frame=None,
+            mode=mode,
+        )
+        assert annotated is not None
+        assert annotated.shape == (100, 100, 3)
+        # Verify overlay drew something
+        assert np.any(annotated > 0)

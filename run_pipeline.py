@@ -12,6 +12,7 @@ BACKEND = ROOT / "backend"
 if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
+from app.services.filtering_service import TemporalFilteringService
 from app.services.frame_extraction_service import FrameExtractionService
 from app.services.inspection_service import InspectionService
 from app.services.kinematics_service import KinematicAnalysisService
@@ -52,6 +53,7 @@ def run_pipeline(
     fps: float | None = None,
     processing_mode: str = "full",
     sampling_interval: int | None = None,
+    filter_mode: str = "filtered",
     generate_overlay: bool = True,
     use_cache: bool = True,
     force_recompute: bool = False,
@@ -220,6 +222,14 @@ def run_pipeline(
         )
         movement_path.write_text(movement.model_dump_json(indent=2), encoding="utf-8")
 
+    if filter_mode != "raw":
+        movement = profiler.profile_stage(
+            "temporal_filtering",
+            frames_processed=len(movement.frames),
+            input_fps=source_fps,
+            action=lambda: TemporalFilteringService().filter_recording(movement),
+        )
+
     validation = profiler.profile_stage(
         "validation",
         frames_processed=len(movement.frames),
@@ -262,6 +272,11 @@ def run_pipeline(
     extracted_frames_dir = ROOT / "sample-data" / "frames" / str(video_id)
     inspection_dir = ROOT / "sample-data" / "kinematic-inspection" / str(video_id)
     inspection_bundle = None
+    overlay_mode = (
+        "RAW+FILTERED"
+        if filter_mode == "raw_plus_filtered"
+        else ("RAW" if filter_mode == "raw" else "FILTERED")
+    )
     if generate_overlay:
         inspection_bundle = profiler.profile_stage(
             "inspection_bundle_generation",
@@ -271,6 +286,7 @@ def run_pipeline(
                 kinematic=kinematics,
                 extracted_frames_dir=extracted_frames_dir,
                 output_dir=inspection_dir,
+                mode=overlay_mode,
             ),
         )
 
@@ -292,6 +308,7 @@ def run_pipeline(
         "frames_with_pose": quality_summary.total_frames,
         "validation_issues": len(validation.issues),
         "processing_mode": processing_mode,
+        "filter_mode": filter_mode,
     }
 
 
@@ -330,6 +347,12 @@ if __name__ == "__main__":
         help="Frame sampling interval for custom mode; ignored for full/half_rate.",
     )
     parser.add_argument(
+        "--filter-mode",
+        choices=["filtered", "raw", "raw_plus_filtered"],
+        default="filtered",
+        help="Temporal filtering mode: filtered (One-Euro), raw, or raw_plus_filtered overlay.",
+    )
+    parser.add_argument(
         "--no-overlay",
         action="store_true",
         help="Skip optional overlay generation for the final inspection bundle.",
@@ -350,6 +373,7 @@ if __name__ == "__main__":
         fps=args.fps,
         processing_mode=args.processing_mode,
         sampling_interval=args.sampling_interval,
+        filter_mode=args.filter_mode,
         generate_overlay=not args.no_overlay,
         use_cache=not args.no_cache,
     )
