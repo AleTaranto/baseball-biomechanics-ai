@@ -24,6 +24,7 @@ from app.services.pose_estimation_service import PoseEstimationService
 from app.services.pose_quality_service import PoseQualityAnalysisService
 from app.services.profiling_service import PerformanceProfiler
 from app.services.swing_segmentation_service import BattingSwingSegmenter
+from app.services.two_pass_pipeline_service import TwoPassPipelineService
 from app.services.video_ingestion_service import VideoIngestionService
 
 
@@ -39,7 +40,7 @@ def _resolve_sampling_interval(
     processing_mode: str,
     sampling_interval: int | None,
 ) -> int:
-    if processing_mode == "full":
+    if processing_mode in ("full", "two_pass"):
         return 1
     if processing_mode == "half_rate":
         return 2
@@ -109,6 +110,32 @@ def run_pipeline(
             else None
         )
         selected_frames = list(frame_manifest.frames)[::sampling_interval_value]
+        two_pass_result = None
+        if processing_mode == "two_pass":
+            extracted_dir = ROOT / "sample-data" / "frames" / str(video_id)
+            if extracted_dir.exists():
+                action_windows = profiler.profile_stage(
+                    "two_pass_coarse_scan",
+                    frames_processed=len(frame_manifest.frames),
+                    input_fps=source_fps,
+                    action=lambda: TwoPassPipelineService.scan_video_for_action_windows(
+                        frames_dir=extracted_dir,
+                        fps=source_fps or 30.0,
+                    ),
+                )
+                two_pass_result = TwoPassPipelineService.evaluate_savings(
+                    video_id=str(video_id),
+                    total_frames=len(frame_manifest.frames),
+                    action_windows=action_windows,
+                )
+                if action_windows:
+                    active_indices: set[int] = set()
+                    for w in action_windows:
+                        active_indices.update(range(w.start_frame, w.end_frame + 1))
+                    selected_frames = [
+                        f for f in frame_manifest.frames if f.frame_index in active_indices
+                    ]
+
         profiler.report["source_fps"] = source_fps
         profiler.report["source_resolution"] = (
             list(source_resolution) if source_resolution is not None else None
@@ -395,6 +422,16 @@ def run_pipeline(
         "frames_with_pose": quality_summary.total_frames,
         "validation_issues": len(validation.issues),
         "processing_mode": processing_mode,
+        "compute_reduction_percentage": (
+            two_pass_result.compute_reduction_percentage
+            if two_pass_result is not None
+            else 0.0
+        ),
+        "action_windows_count": (
+            len(two_pass_result.action_windows)
+            if two_pass_result is not None
+            else 0
+        ),
         "filter_mode": filter_mode,
     }
 
@@ -423,9 +460,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--processing-mode",
-        choices=["full", "half_rate", "custom"],
+        choices=["full", "half_rate", "custom", "two_pass"],
         default="full",
-        help="Processing mode: full, half_rate, or custom frame sampling.",
+        help="Processing mode: full, half_rate, custom, or two_pass coarse-scan ROI analysis.",
     )
     parser.add_argument(
         "--sampling-interval",
