@@ -89,11 +89,13 @@ def test_get_or_create_movement_and_kinematics_generation(tmp_path: Path):
         frames=[],
     )
 
+    mock_pe_inst = MagicMock()
     with patch("app.api.routes.analysis.ROOT_DIR", tmp_path), patch(
         "app.services.frame_extraction_service.FrameExtractionService.extract_frames"
     ) as mock_fe, patch(
-        "app.services.pose_estimation_service.PoseEstimationService.estimate_video"
-    ) as mock_pe, patch(
+        "app.api.routes.analysis.PoseEstimationService",
+        return_value=mock_pe_inst,
+    ) as mock_pe_cls, patch(
         "app.services.movement_service.MovementDataMapper.from_pose_estimation_response",
         return_value=dummy_movement,
     ), patch(
@@ -103,10 +105,10 @@ def test_get_or_create_movement_and_kinematics_generation(tmp_path: Path):
         "app.services.kinematics_service.KinematicAnalysisService.build_recording",
         return_value=dummy_kinematic,
     ):
-        mock_pe.return_value = MagicMock()
         m, k, f_dir = _get_or_create_movement_and_kinematics(video_id)
         assert mock_fe.called
-        assert mock_pe.called
+        assert mock_pe_cls.called
+        assert mock_pe_inst.estimate_video.called
         assert m.source_video_id == video_id
         assert k.source_video_id == video_id
         assert f_dir == tmp_path / "sample-data" / "frames" / video_id
