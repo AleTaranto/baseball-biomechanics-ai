@@ -114,3 +114,24 @@ def test_bat_tracker_gap_interpolation() -> None:
     assert math.isclose(detections[1].handle_point[0], 0.3, abs_tol=1e-3)
     assert detections[1].barrel_point is not None
     assert math.isclose(detections[1].barrel_point[0], 0.5, abs_tol=1e-3)
+
+
+def test_bat_tracker_missing_image_path_returns_none(tmp_path: Path) -> None:
+    tracker = ShaftEdgeBatTracker()
+    missing_path = tmp_path / "non_existent.jpg"
+    result = tracker.detect_in_image(missing_path)
+    assert result is None
+
+
+def test_hybrid_bat_tracker_custom_color_ranges() -> None:
+    from app.services.bat_tracker_service import ColorMarkerBatTracker, HybridBatTracker
+
+    custom_tracker = ColorMarkerBatTracker(
+        custom_barrel_range=((10, 50, 50), (30, 255, 255)),
+        custom_handle_range=((100, 50, 50), (120, 255, 255)),
+    )
+    assert custom_tracker.barrel_range == ((10, 50, 50), (30, 255, 255))
+    assert custom_tracker.handle_range == ((100, 50, 50), (120, 255, 255))
+
+    hybrid = HybridBatTracker(edge_fallback=False)
+    assert hybrid.edge_tracker is None
