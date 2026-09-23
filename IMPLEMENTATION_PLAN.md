@@ -27,7 +27,7 @@ All milestones have been fully implemented and verified with automated test cove
 - X-Factor hip-shoulder separation, torso tilt, head drift, hand path, and kinetic chain proximal-to-distal sequencing analysis.
 
 ## Milestone 8 — Computer Vision Bat Tracker & Contact Detector [Completed]
-- Canny/Hough shaft edge detection, sweet spot tracking, attack angle calculation, and multi-signal consensus contact detection.
+- Canny/Hough shaft edge detection, HSV color marker chromatic segmentation, hybrid bat tracking with fallback, sweet spot tracking, attack angle calculation, and multi-signal consensus contact detection.
 
 ## Milestone 9 — Pitching Biomechanical Analyzer [Completed]
 - Pitch delivery phase segmentation, stride length (% body height), arm slot angle, elbow flexion, pelvis/torso rotational velocities.
@@ -36,7 +36,7 @@ All milestones have been fully implemented and verified with automated test cove
 - Downsampled coarse motion scanning, active window pruning (>30% compute reduction), throughput profiler, and accuracy benchmarking suite.
 
 ## Milestone 11 — Advanced Visual Overlays & Video Rendering [Completed]
-- Skeleton wireframe overlays, bat trajectory trails, arm slot rays, and HUD phase badges burned into video files.
+- Anatomically-scaled 3D skeleton wireframe overlays, stabilized 2D bat overlays, bat trajectory trails, arm slot rays, and HUD phase badges burned into video files.
 
 ## Milestone 12 — Production REST API & Interactive Web Dashboard [Completed]
 - FastAPI endpoints for batting, pitching, pipelines, and benchmarks; interactive HTML5/Tailwind/Chart.js web visualizer dashboard mounted at `/dashboard`.

@@ -30,3 +30,9 @@
 - add an interface for reporting and coaching feedback;
 - connect backend APIs to front-end workflows;
 - refine operational monitoring and quality checks.
+
+## Phase 6: visual enhancements and multi-modal tracking [Completed]
+
+- anatomically-scaled 3D skeleton wireframe reconstruction;
+- stabilized 2D bat overlay rendering;
+- HSV color marker chromatic segmentation and hybrid bat tracking.
