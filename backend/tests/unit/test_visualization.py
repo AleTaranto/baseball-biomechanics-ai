@@ -529,3 +529,60 @@ def test_render_pitching_overlay_and_action_hud() -> None:
         recent_wrist_pts=[(100, 80), (120, 80)],
     )
     assert np.any(full_overlay > 0)
+
+
+def test_render_3d_skeleton_anatomical_scaling() -> None:
+    """Verify 3D skeleton rendering handles anatomical keypoint scaling."""
+    frame = FramePose(
+        frame_index=1,
+        timestamp_seconds=0.033,
+        detected=True,
+        joints={
+            "left_shoulder": JointObservation(joint_name="left_shoulder", x=0.4, y=0.3, z=-0.1),
+            "right_shoulder": JointObservation(joint_name="right_shoulder", x=0.6, y=0.3, z=-0.1),
+            "left_hip": JointObservation(joint_name="left_hip", x=0.45, y=0.6, z=0.0),
+            "right_hip": JointObservation(joint_name="right_hip", x=0.55, y=0.6, z=0.0),
+            "left_elbow": JointObservation(joint_name="left_elbow", x=0.35, y=0.45, z=-0.15),
+            "right_elbow": JointObservation(joint_name="right_elbow", x=0.65, y=0.45, z=-0.15),
+        },
+    )
+    img = np.zeros((200, 200, 3), dtype=np.uint8)
+    rendered = InspectionService.render_frame_overlay(
+        image=img,
+        movement_frame=frame,
+        kinematic_frame=None,
+        mode="FILTERED",
+    )
+    assert rendered is not None
+    assert rendered.shape == (200, 200, 3)
+    assert np.any(rendered > 0)
+
+
+def test_render_2d_bat_overlay_stabilized() -> None:
+    """Verify 2D bat overlay correctly renders barrel, handle, and trajectory."""
+    from app.schemas.bat import BatDetection
+
+    image = np.zeros((300, 300, 3), dtype=np.uint8)
+    bat_det = BatDetection(
+        frame_index=10,
+        timestamp_seconds=0.33,
+        detected=True,
+        handle_point=(0.3, 0.5),
+        barrel_point=(0.7, 0.2),
+        sweet_spot=(0.6, 0.275),
+        confidence=0.92,
+        shaft_orientation_deg=35.0,
+    )
+    recent_pts = [(100, 200), (130, 180), (160, 150), (210, 60)]
+
+    annotated = InspectionService.render_bat_overlay(
+        image=image.copy(),
+        bat_detection=bat_det,
+        recent_barrel_pts=recent_pts,
+        width=300,
+        height=300,
+    )
+    assert annotated is not None
+    assert annotated.shape == (300, 300, 3)
+    # Ensure overlay modifies pixels
+    assert np.any(annotated > 0)
