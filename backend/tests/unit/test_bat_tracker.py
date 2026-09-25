@@ -114,3 +114,42 @@ def test_bat_tracker_gap_interpolation() -> None:
     assert math.isclose(detections[1].handle_point[0], 0.3, abs_tol=1e-3)
     assert detections[1].barrel_point is not None
     assert math.isclose(detections[1].barrel_point[0], 0.5, abs_tol=1e-3)
+
+
+def test_bat_tracker_gap_interpolation_and_speed_calculation() -> None:
+    tracker = ShaftEdgeBatTracker()
+    detections = [
+        BatDetection(
+            frame_index=0,
+            timestamp_seconds=0.0,
+            detected=True,
+            handle_point=(0.1, 0.5),
+            barrel_point=(0.3, 0.5),
+            confidence=0.9,
+        ),
+        BatDetection(
+            frame_index=1,
+            timestamp_seconds=0.033333,
+            detected=False,
+        ),
+        BatDetection(
+            frame_index=2,
+            timestamp_seconds=0.066666,
+            detected=True,
+            handle_point=(0.3, 0.5),
+            barrel_point=(0.5, 0.5),
+            confidence=0.9,
+        ),
+    ]
+
+    tracker._interpolate_short_gaps(detections, max_gap=3)
+    assert detections[1].detected is True
+    assert detections[1].barrel_point is not None
+    assert math.isclose(detections[1].barrel_point[0], 0.4, abs_tol=1e-3)
+
+    trajectory = tracker._build_trajectory(detections)
+    assert len(trajectory) == 3
+    assert trajectory[1].barrel_speed is not None
+    assert trajectory[1].barrel_speed > 0.0
+    assert trajectory[2].barrel_speed is not None
+    assert trajectory[2].barrel_speed > 0.0
