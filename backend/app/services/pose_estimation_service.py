@@ -247,7 +247,17 @@ class PoseEstimationService:
         self.root_dir = Path(__file__).resolve().parents[3]
         self.frames_root = self.root_dir / "sample-data" / "frames"
         self.pose_root = self.root_dir / "sample-data" / "pose-estimation"
-        self.estimator = estimator or MediaPipePoseEstimator()
+        self._estimator = estimator
+
+    @property
+    def estimator(self) -> PoseEstimator:
+        if self._estimator is None:
+            self._estimator = MediaPipePoseEstimator()
+        return self._estimator
+
+    @estimator.setter
+    def estimator(self, value: PoseEstimator | None) -> None:
+        self._estimator = value
 
     def _frame_manifest_path(self, video_id: str) -> Path:
         return self.frames_root / video_id / "manifest.json"
