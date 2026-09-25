@@ -529,3 +529,28 @@ def test_render_pitching_overlay_and_action_hud() -> None:
         recent_wrist_pts=[(100, 80), (120, 80)],
     )
     assert np.any(full_overlay > 0)
+
+
+def test_render_bat_overlay_with_recent_barrel_points() -> None:
+    from app.schemas.bat import BatDetection
+
+    image = np.zeros((200, 200, 3), dtype=np.uint8)
+    bat_det = BatDetection(
+        frame_index=3,
+        timestamp_seconds=0.1,
+        detected=True,
+        handle_point=(0.3, 0.5),
+        barrel_point=(0.6, 0.3),
+        sweet_spot=(0.525, 0.35),
+    )
+    recent_pts = [(50, 110), (80, 90), (120, 60)]
+
+    annotated = InspectionService.render_bat_overlay(
+        image=image.copy(),
+        bat_detection=bat_det,
+        recent_barrel_pts=recent_pts,
+        width=200,
+        height=200,
+    )
+    assert annotated.shape == (200, 200, 3)
+    assert np.any(annotated > 0)

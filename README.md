@@ -3,6 +3,7 @@
 [![Status](https://img.shields.io/badge/status-production--ready%20pipeline-green)](https://github.com/AleTaranto/baseball-biomechanics-ai)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111%2B-009688)](https://fastapi.tiangolo.com/)
+[![CI](https://github.com/AleTaranto/baseball-biomechanics-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/AleTaranto/baseball-biomechanics-ai/actions)
 
 Baseball Biomechanics AI is an end-to-end computer vision and biomechanical analysis engine for baseball hitting and pitching. It ingests video, extracts high-frequency poses, tracks bat and body kinematics, computes rotational force transfer and timing metrics, and presents interactive visual dashboards for coaches, athletes, and biomechanists.
 
@@ -14,7 +15,7 @@ The platform provides structured observations, evidence-based interpretations, k
 
 ## Current status
 
-All 19 execution tasks (Tasks 001–019) across the entire implementation roadmap are complete.
+All 19 execution tasks (Tasks 001–019) across the entire implementation roadmap are 100% complete and fully verified.
 
 The project includes:
 
