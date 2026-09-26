@@ -367,6 +367,64 @@ def test_render_frame_overlay_supports_raw_and_filtered_modes() -> None:
         assert np.any(annotated > 0)
 
 
+def test_render_bat_overlay_stabilization_and_motion_trail() -> None:
+    from app.schemas.bat import BatDetection
+
+    image = np.zeros((300, 300, 3), dtype=np.uint8)
+
+    # 1. Test bat detection with full handle, barrel, and sweet spot
+    bat_det = BatDetection(
+        frame_index=12,
+        timestamp_seconds=0.4,
+        detected=True,
+        handle_point=(0.3, 0.5),
+        barrel_point=(0.8, 0.2),
+        sweet_spot=(0.675, 0.275),
+    )
+
+    # Motion trail with multiple historical points
+    recent_pts = [(100, 180), (120, 160), (150, 130), (180, 100), (210, 80), (240, 60)]
+
+    rendered = InspectionService.render_bat_overlay(
+        image=image.copy(),
+        bat_detection=bat_det,
+        recent_barrel_pts=recent_pts,
+        width=300,
+        height=300,
+    )
+    assert rendered is not None
+    assert rendered.shape == (300, 300, 3)
+    assert np.any(rendered > 0)
+
+    # 2. Test bat detection missing sweet spot (should calculate fallback sweet spot)
+    bat_no_sweet = BatDetection(
+        frame_index=13,
+        timestamp_seconds=0.433,
+        detected=True,
+        handle_point=(0.3, 0.5),
+        barrel_point=(0.8, 0.2),
+        sweet_spot=None,
+    )
+    rendered_no_sweet = InspectionService.render_bat_overlay(
+        image=image.copy(),
+        bat_detection=bat_no_sweet,
+        recent_barrel_pts=[],
+        width=300,
+        height=300,
+    )
+    assert np.any(rendered_no_sweet > 0)
+
+    # 3. Test undetected bat (returns image with motion trail if points present)
+    rendered_undetected = InspectionService.render_bat_overlay(
+        image=image.copy(),
+        bat_detection=None,
+        recent_barrel_pts=recent_pts,
+        width=300,
+        height=300,
+    )
+    assert np.any(rendered_undetected > 0)
+
+
 def test_render_bat_overlay_and_action_hud() -> None:
     from app.schemas.bat import BatDetection
     from app.schemas.contact import ContactDetectionResult, ContactSignalEntry
