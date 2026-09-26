@@ -25,8 +25,9 @@
 - map domain rules and evidence;
 - produce explainable recommendations.
 
-## Phase 5: product experience
+## Phase 5: product experience & visualization
 
-- add an interface for reporting and coaching feedback;
-- connect backend APIs to front-end workflows;
-- refine operational monitoring and quality checks.
+- add interactive visualizer dashboard for reporting and coaching feedback (`/dashboard`);
+- connect backend REST APIs (`/api/v1/...`) to front-end workflows;
+- refine visual overlay rendering with anatomical scaling and stabilized 2D bat overlays;
+- refine operational monitoring, benchmark accuracy, and quality checks.
