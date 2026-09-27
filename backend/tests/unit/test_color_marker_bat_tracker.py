@@ -100,6 +100,66 @@ def test_color_marker_tracker_empty_image_returns_none() -> None:
     assert result is None
 
 
+def test_detect_in_image_accepts_path_and_str(tmp_path: Path) -> None:
+    tracker = ColorMarkerBatTracker(color_preset="neon_green_orange")
+    img = _create_synthetic_marker_image(
+        handle_pos=(100, 150),
+        barrel_pos=(300, 150),
+        handle_bgr=(0, 140, 255),
+        barrel_bgr=(0, 255, 0),
+        width=400,
+        height=300,
+    )
+    img_path = tmp_path / "test_detect.png"
+    cv2.imwrite(str(img_path), img)
+
+    # Test Path input
+    res_path = tracker.detect_in_image(img_path)
+    assert res_path is not None
+
+    # Test string input
+    res_str = tracker.detect_in_image(str(img_path))
+    assert res_str is not None
+    assert res_path == res_str
+
+
+def test_interpolate_short_gaps() -> None:
+    from app.schemas.bat import BatDetection
+
+    detections = [
+        BatDetection(
+            frame_index=0,
+            timestamp_seconds=0.0,
+            detected=True,
+            handle_point=(0.2, 0.4),
+            barrel_point=(0.6, 0.2),
+            sweet_spot=(0.5, 0.25),
+            shaft_orientation_deg=135.0,
+            confidence=0.9,
+        ),
+        BatDetection(
+            frame_index=1,
+            timestamp_seconds=0.033,
+            detected=False,
+        ),
+        BatDetection(
+            frame_index=2,
+            timestamp_seconds=0.066,
+            detected=True,
+            handle_point=(0.22, 0.42),
+            barrel_point=(0.62, 0.22),
+            sweet_spot=(0.52, 0.27),
+            shaft_orientation_deg=135.0,
+            confidence=0.9,
+        ),
+    ]
+
+    ColorMarkerBatTracker._interpolate_short_gaps(detections, max_gap=2)
+    assert detections[1].detected is True
+    assert detections[1].handle_point is not None
+    assert math.isclose(detections[1].handle_point[0], 0.21, abs_tol=1e-3)
+
+
 def test_color_marker_tracker_full_track(tmp_path: Path) -> None:
     tracker = ColorMarkerBatTracker(color_preset="neon_green_orange")
 
