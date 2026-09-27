@@ -164,13 +164,13 @@ mypy backend
 
 The repository is organized around a modular architecture:
 
-- `backend/` — API, config, and application bootstrap
+- `backend/` — FastAPI REST endpoints, pipeline services, and application core
+- `frontend/` — Interactive web visualizer dashboard (HTML5, Tailwind CSS, Chart.js) served at `/dashboard`
 - `docs/` — product, research, and architecture documentation
 - `knowledge/` — biomechanical knowledge, evidence, and assumptions
 - `specs/` — API and product specifications
-- `tasks/` — milestone and execution tracking
-- `sample-data/` — metadata for test videos and future fixtures
-- `frontend/` — reserved for future web UI work
+- `tasks/` — milestone and execution tracking (Tasks 001–019 completed)
+- `sample-data/` — test videos, extracted frames, pose outputs, movement JSONs, and debug manifests
 
 ## Key goals
 
@@ -234,20 +234,25 @@ This repository includes a GitHub Project for tracking milestones and backlog it
 
 - GitHub Project: https://github.com/users/AleTaranto/projects/1
 
-## Roadmap
+## Roadmap & Milestone Progress
 
-The long-term roadmap is organized in milestones covering:
+All 12 delivery milestones (Milestones 0–12) have been completed and verified with automated unit tests, type safety checks (`mypy`), and linter compliance (`ruff`):
 
-1. repository bootstrap and foundation
-2. video ingestion and validation
-3. frame extraction and processing
-4. pose estimation
-5. swing segmentation
-6. biomechanical data model
-7. metrics engine
-8. interpretation and recommendations
+- **Milestone 0 — Repository Bootstrap** [Completed]
+- **Milestone 1 — Video Ingestion & Validation** [Completed]
+- **Milestone 2 — Frame Extraction & Processing** [Completed]
+- **Milestone 3 — Pose Estimation** [Completed]
+- **Milestone 4 — Movement Data Model & Validation** [Completed]
+- **Milestone 5 — Kinematics Engine** [Completed]
+- **Milestone 6 — Swing & Pitching Segmentation** [Completed]
+- **Milestone 7 — Batting Biomechanical Metrics Engine** [Completed]
+- **Milestone 8 — Computer Vision Bat Tracker & Contact Detector** [Completed]
+- **Milestone 9 — Pitching Biomechanical Analyzer** [Completed]
+- **Milestone 10 — Two-Pass Performance Pipeline & Benchmarking** [Completed]
+- **Milestone 11 — Advanced Visual Overlays & Video Rendering** [Completed]
+- **Milestone 12 — Production REST API & Interactive Web Dashboard** [Completed]
 
-See `IMPLEMENTATION_PLAN.md` and `ROADMAP.md` for the full plan.
+See `IMPLEMENTATION_PLAN.md` and `ROADMAP.md` for full implementation details.
 
 ## Contributing
 
@@ -269,4 +274,4 @@ See:
 
 ## Important note
 
-This repository is intentionally in an early stage. The goal is not to ship a complete biomechanical analysis platform in one step, but to create a robust foundation that can evolve safely and predictably.
+All primary engine tasks (Tasks 001–019) across Milestones 0–12 are fully implemented, tested, and production-ready. The system provides a complete end-to-end computer vision and biomechanics analysis platform for both hitting and pitching workflows.
