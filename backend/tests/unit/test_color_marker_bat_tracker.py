@@ -92,6 +92,32 @@ def test_color_marker_tracker_barrel_with_hand_anchor_fallback() -> None:
     assert conf >= 0.65
 
 
+def test_color_marker_tracker_detect_in_image_file_inputs(tmp_path: Path) -> None:
+    tracker = ColorMarkerBatTracker(color_preset="neon_green_orange")
+    img = _create_synthetic_marker_image(
+        handle_pos=(100, 150),
+        barrel_pos=(300, 150),
+        handle_bgr=(0, 140, 255),
+        barrel_bgr=(0, 255, 0),
+        width=400,
+        height=300,
+    )
+    img_path = tmp_path / "test_marker.png"
+    cv2.imwrite(str(img_path), img)
+
+    # Test with Path object
+    res_path = tracker.detect_in_image(img_path, hand_anchor=(0.25, 0.50))
+    assert res_path is not None
+
+    # Test with str path
+    res_str = tracker.detect_in_image(str(img_path), hand_anchor=(0.25, 0.50))
+    assert res_str is not None
+
+    # Test with non-existent file
+    res_none = tracker.detect_in_image(tmp_path / "non_existent.png")
+    assert res_none is None
+
+
 def test_color_marker_tracker_empty_image_returns_none() -> None:
     tracker = ColorMarkerBatTracker(color_preset="neon_green_orange")
     # Black empty image
