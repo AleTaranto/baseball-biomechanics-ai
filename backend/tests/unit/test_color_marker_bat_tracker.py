@@ -100,6 +100,33 @@ def test_color_marker_tracker_empty_image_returns_none() -> None:
     assert result is None
 
 
+def test_color_marker_tracker_invalid_input_returns_none(tmp_path: Path) -> None:
+    tracker = ColorMarkerBatTracker(color_preset="neon_green_orange")
+    non_existent_file = tmp_path / "does_not_exist.jpg"
+    result = tracker.detect_in_image(non_existent_file)
+    assert result is None
+
+
+def test_color_marker_tracker_roi_filter_synthetic_image() -> None:
+    tracker = ColorMarkerBatTracker(color_preset="neon_green_orange")
+    # Create synthetic image with markers
+    img = _create_synthetic_marker_image(
+        handle_pos=(100, 150),
+        barrel_pos=(300, 150),
+        handle_bgr=(0, 140, 255),
+        barrel_bgr=(0, 255, 0),
+        width=400,
+        height=300,
+    )
+    # Detect with ROI centered near handle (0.25, 0.50)
+    result = tracker.detect_in_image(img, hand_anchor=(0.25, 0.50))
+    assert result is not None
+    handle, barrel, conf = result
+    assert handle is not None
+    assert barrel is not None
+    assert conf > 0.0
+
+
 def test_color_marker_tracker_full_track(tmp_path: Path) -> None:
     tracker = ColorMarkerBatTracker(color_preset="neon_green_orange")
 
