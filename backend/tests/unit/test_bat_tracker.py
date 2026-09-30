@@ -44,6 +44,35 @@ def test_bat_tracker_detect_in_synthetic_image(tmp_path: Path) -> None:
     assert 0.3 < length < 0.85
 
 
+def test_bat_tracker_detect_in_image_with_hand_anchor(tmp_path: Path) -> None:
+    tracker = ShaftEdgeBatTracker(
+        min_line_length_ratio=0.1,
+        max_line_length_ratio=0.7,
+        hough_threshold=15,
+    )
+    img_path = tmp_path / "hand_anchor_frame.jpg"
+
+    canvas = np.zeros((400, 400, 3), dtype=np.uint8)
+    cv2.line(canvas, (100, 100), (300, 300), (255, 255, 255), 4)
+    cv2.imwrite(str(img_path), canvas)
+
+    # Hand anchor near start of line (0.25, 0.25)
+    hand_anchor = (0.25, 0.25)
+    result = tracker.detect_in_image(img_path, hand_anchor=hand_anchor)
+    assert result is not None
+    p1, p2, conf = result
+    assert conf > 0.2
+    # p1 (handle) should be close to hand anchor
+    d1 = math.hypot(p1[0] - hand_anchor[0], p1[1] - hand_anchor[1])
+    d2 = math.hypot(p2[0] - hand_anchor[0], p2[1] - hand_anchor[1])
+    assert d1 < d2
+
+
+def test_bat_tracker_nonexistent_image() -> None:
+    tracker = ShaftEdgeBatTracker()
+    assert tracker.detect_in_image(Path("non_existent_file.jpg")) is None
+
+
 def test_bat_tracker_trajectory_and_attack_angle() -> None:
     tracker = ShaftEdgeBatTracker()
     # Simulate a 3-frame sequence where the barrel moves up and forward (slight upward attack angle)
