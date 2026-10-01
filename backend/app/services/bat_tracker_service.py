@@ -452,7 +452,7 @@ class ColorMarkerBatTracker(BaseBatTracker):
             cx, cy = int(roi_center[0] * w), int(roi_center[1] * h)
             r = int(roi_radius_ratio * diag)
             cv2.circle(roi_mask, (cx, cy), max(15, r), 255, -1)
-            mask = cv2.bitwise_and(mask, roi_mask)
+            mask = cv2.bitwise_and(mask, roi_mask)  # type: ignore[assignment]
 
         # Morphological noise removal
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
@@ -490,6 +490,7 @@ class ColorMarkerBatTracker(BaseBatTracker):
 
         Returns ((handle_x, handle_y), (barrel_x, barrel_y), confidence).
         """
+        img: np.ndarray | None
         if isinstance(image_input, np.ndarray):
             img = image_input
         else:
@@ -530,7 +531,8 @@ class ColorMarkerBatTracker(BaseBatTracker):
             length = math.hypot(barrel_pt[0] - hand_anchor[0], barrel_pt[1] - hand_anchor[1])
             if self.min_bat_length_ratio <= length <= self.max_bat_length_ratio:
                 conf = min(0.85, float(b_conf * 0.85))
-                return (hand_anchor, barrel_pt, conf)
+                res_handle: tuple[float, float] = hand_anchor
+                return (res_handle, barrel_pt, conf)
 
         return None
 
