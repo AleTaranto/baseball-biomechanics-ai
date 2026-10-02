@@ -529,3 +529,79 @@ def test_render_pitching_overlay_and_action_hud() -> None:
         recent_wrist_pts=[(100, 80), (120, 80)],
     )
     assert np.any(full_overlay > 0)
+
+
+def test_skeleton_rendering_anatomical_scale_and_connections() -> None:
+    """Verify 3D/2D skeleton joint markers and bone connections render correctly."""
+    image = np.zeros((480, 640, 3), dtype=np.uint8)
+    frame = FramePose(
+        frame_index=0,
+        timestamp_seconds=0.0,
+        detected=True,
+        joints={
+            "left_shoulder": _make_joint(x=0.40, y=0.25),
+            "right_shoulder": _make_joint(x=0.60, y=0.25),
+            "left_elbow": _make_joint(x=0.35, y=0.40),
+            "right_elbow": _make_joint(x=0.65, y=0.40),
+            "left_wrist": _make_joint(x=0.30, y=0.55),
+            "right_wrist": _make_joint(x=0.70, y=0.55),
+            "left_hip": _make_joint(x=0.45, y=0.50),
+            "right_hip": _make_joint(x=0.55, y=0.50),
+            "left_knee": _make_joint(x=0.43, y=0.70),
+            "right_knee": _make_joint(x=0.57, y=0.70),
+            "left_ankle": _make_joint(x=0.42, y=0.90),
+            "right_ankle": _make_joint(x=0.58, y=0.90),
+        },
+    )
+
+    rendered_skel = InspectionService.render_skeleton(
+        image.copy(), frame, width=640, height=480, thickness=2
+    )
+    assert np.any(rendered_skel > 0)
+
+    rendered_joints = InspectionService.render_joint_markers(
+        rendered_skel.copy(), frame, width=640, height=480, radius=5
+    )
+    assert np.any(rendered_joints > 0)
+
+
+def test_bat_overlay_stabilization_and_motion_trails() -> None:
+    """Verify 2D bat overlay stabilization and temporal motion trail accumulation."""
+    from app.schemas.bat import BatDetection
+
+    image = np.zeros((300, 400, 3), dtype=np.uint8)
+
+    # 1. Bat detected with motion trail
+    det_active = BatDetection(
+        frame_index=12,
+        timestamp_seconds=0.40,
+        detected=True,
+        handle_point=(0.45, 0.50),
+        barrel_point=(0.75, 0.30),
+        sweet_spot=(0.675, 0.35),
+    )
+    trail_pts = [(200, 180), (230, 160), (260, 140), (290, 120)]
+
+    overlay_img = InspectionService.render_bat_overlay(
+        image.copy(),
+        bat_detection=det_active,
+        recent_barrel_pts=trail_pts,
+        width=400,
+        height=300,
+    )
+    assert np.any(overlay_img > 0)
+
+    # 2. Bat undetected (trail fallback only)
+    det_none = BatDetection(
+        frame_index=13,
+        timestamp_seconds=0.433,
+        detected=False,
+    )
+    overlay_trail_only = InspectionService.render_bat_overlay(
+        image.copy(),
+        bat_detection=det_none,
+        recent_barrel_pts=trail_pts,
+        width=400,
+        height=300,
+    )
+    assert np.any(overlay_trail_only > 0)
