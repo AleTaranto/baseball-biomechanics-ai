@@ -100,6 +100,33 @@ def test_color_marker_tracker_empty_image_returns_none() -> None:
     assert result is None
 
 
+def test_color_marker_tracker_detect_in_image_input_types(tmp_path: Path) -> None:
+    tracker = ColorMarkerBatTracker(color_preset="neon_green_orange")
+    img = _create_synthetic_marker_image(
+        handle_pos=(100, 150),
+        barrel_pos=(300, 150),
+        handle_bgr=(0, 140, 255),
+        barrel_bgr=(0, 255, 0),
+        width=400,
+        height=300,
+    )
+
+    # Test input as Path object
+    img_path = tmp_path / "test_input.png"
+    cv2.imwrite(str(img_path), img)
+
+    res_path = tracker.detect_in_image(img_path)
+    assert res_path is not None
+
+    # Test input as str filepath
+    res_str = tracker.detect_in_image(str(img_path))
+    assert res_str is not None
+
+    # Test input as np.ndarray
+    res_arr = tracker.detect_in_image(img)
+    assert res_arr is not None
+
+
 def test_color_marker_tracker_full_track(tmp_path: Path) -> None:
     tracker = ColorMarkerBatTracker(color_preset="neon_green_orange")
 
