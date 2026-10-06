@@ -100,6 +100,29 @@ def test_color_marker_tracker_empty_image_returns_none() -> None:
     assert result is None
 
 
+def test_color_marker_tracker_detect_in_image_types_and_invalid_path() -> None:
+    tracker = ColorMarkerBatTracker(color_preset="neon_green_orange")
+    # String path that does not exist
+    assert tracker.detect_in_image("non_existent_file.png") is None
+    # Path object that does not exist
+    assert tracker.detect_in_image(Path("non_existent_file.png")) is None
+
+    # Valid np.ndarray input with markers
+    img = _create_synthetic_marker_image(
+        handle_pos=(100, 150),
+        barrel_pos=(300, 150),
+        handle_bgr=(0, 140, 255),
+        barrel_bgr=(0, 255, 0),
+        width=400,
+        height=300,
+    )
+    result = tracker.detect_in_image(img)
+    assert result is not None
+    handle, barrel, conf = result
+    assert math.isclose(handle[0], 0.25, abs_tol=0.04)
+    assert math.isclose(barrel[0], 0.75, abs_tol=0.04)
+
+
 def test_color_marker_tracker_full_track(tmp_path: Path) -> None:
     tracker = ColorMarkerBatTracker(color_preset="neon_green_orange")
 
