@@ -28,9 +28,10 @@ The project includes:
 - **Computer Vision Bat Tracker & Multi-Signal Contact Detector**: Canny/Hough line detection and consensus-based contact frame identification.
 - **Two-Pass Performance Pipeline**: Fast downsampled coarse scanning with deep pose processing pruned to active motion windows (achieving >30% compute reduction).
 - **Benchmark & Accuracy Suite**: Throughput profilers, FPS speedup multipliers, and precision validation against ground-truth signals.
-- **Advanced Visual Overlays & Video Rendering**: Skeleton wireframes, bat trajectory trails, arm slot rays, and HUD phase badges burned into MP4 videos.
+- **Advanced Visual Overlays & Video Rendering**: Skeleton wireframes, 3D anatomical scale correction, stabilized 2D bat overlay trails, arm slot rays, and HUD phase badges burned into MP4 videos.
 - **Production REST API**: Full FastAPI route suite (`/api/v1/videos`, `/api/v1/analysis`, `/api/v1/pipeline`, `/api/v1/benchmark`).
 - **Interactive Web Visualizer Dashboard**: Modern HTML5/Tailwind/Chart.js web interface served at `/dashboard` with video scrubbing, synced kinematics graphs, overlay toggles, and real-time metric cards.
+- **Robust Test & CI Suite**: 100/100 unit tests green, with strict type checking (mypy) and linting (ruff) passing on GitHub Actions.
 
 ## What the project does right now
 
