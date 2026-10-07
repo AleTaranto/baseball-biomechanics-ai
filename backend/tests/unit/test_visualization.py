@@ -529,3 +529,112 @@ def test_render_pitching_overlay_and_action_hud() -> None:
         recent_wrist_pts=[(100, 80), (120, 80)],
     )
     assert np.any(full_overlay > 0)
+
+
+def test_render_skeleton_clamping_and_anatomical_scale() -> None:
+    image = np.zeros((200, 200, 3), dtype=np.uint8)
+    frame = FramePose(
+        frame_index=0,
+        timestamp_seconds=0.0,
+        detected=True,
+        joints={
+            "left_shoulder": _make_joint(x=-0.2, y=0.1),  # negative x -> clamped to 0
+            "left_elbow": _make_joint(x=0.5, y=1.2),      # y > 1 -> clamped to height (200)
+            "left_wrist": _make_joint(x=0.5, y=0.5),
+            "right_shoulder": _make_joint(x=0.8, y=0.1),
+            "right_elbow": _make_joint(x=0.8, y=0.5),
+        },
+    )
+    rendered = InspectionService.render_skeleton(
+        image=image.copy(),
+        frame=frame,
+        width=200,
+        height=200,
+    )
+    assert np.any(rendered > 0)
+
+
+def test_render_bat_overlay_stabilization_and_empty_trail() -> None:
+    from app.schemas.bat import BatDetection
+
+    image = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    # Test None bat detection
+    none_result = InspectionService.render_bat_overlay(
+        image=image.copy(),
+        bat_detection=None,
+        recent_barrel_pts=None,
+        width=100,
+        height=100,
+    )
+    assert np.array_equal(none_result, image)
+
+    # Test undetected bat detection
+    undetected = BatDetection(frame_index=1, timestamp_seconds=0.033, detected=False)
+    undetected_result = InspectionService.render_bat_overlay(
+        image=image.copy(),
+        bat_detection=undetected,
+        recent_barrel_pts=[(10, 10), (20, 20)],
+        width=100,
+        height=100,
+    )
+    # Trail is drawn even when current frame detection is False
+    assert np.any(undetected_result > 0)
+
+
+def test_pitching_overlay_lhp_handedness() -> None:
+    from app.schemas.pitching import (
+        PitchingAnalysisResult,
+        PitchingBiomechanicalMetrics,
+        PitchingDeliveryWindow,
+    )
+
+    image = np.zeros((200, 200, 3), dtype=np.uint8)
+    frame = FramePose(
+        frame_index=5,
+        timestamp_seconds=0.165,
+        detected=True,
+        joints={
+            "left_wrist": _make_joint(x=0.3, y=0.4),
+            "left_shoulder": _make_joint(x=0.45, y=0.35),
+            "left_elbow": _make_joint(x=0.35, y=0.4),
+            "left_ankle": _make_joint(x=0.35, y=0.85),
+            "right_ankle": _make_joint(x=0.55, y=0.85),
+        },
+    )
+
+    pitching_lhp = PitchingAnalysisResult(
+        video_id="pitch_lhp_test",
+        delivery_detected=True,
+        delivery_window=PitchingDeliveryWindow(
+            start_frame=0,
+            end_frame=10,
+            duration_seconds=0.33,
+            foot_strike_frame=5,
+            release_frame=5,
+        ),
+        metrics=PitchingBiomechanicalMetrics(
+            handedness="LHP",
+            stride_length_normalized=0.50,
+            arm_slot_angle_deg=50.0,
+            max_shoulder_external_rotation_deg=170.0,
+        ),
+    )
+
+    hud_img = InspectionService.render_action_hud(
+        image=image.copy(),
+        frame_index=5,
+        width=200,
+        pitching_result=pitching_lhp,
+    )
+    assert np.any(hud_img > 0)
+
+    overlay_img = InspectionService.render_pitching_overlay(
+        image=image.copy(),
+        frame=frame,
+        pitching_result=pitching_lhp,
+        recent_wrist_pts=[(50, 80), (60, 80)],
+        width=200,
+        height=200,
+    )
+    assert np.any(overlay_img > 0)
