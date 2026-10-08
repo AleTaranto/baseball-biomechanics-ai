@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import cast
 
 import cv2
@@ -529,3 +530,109 @@ def test_render_pitching_overlay_and_action_hud() -> None:
         recent_wrist_pts=[(100, 80), (120, 80)],
     )
     assert np.any(full_overlay > 0)
+
+
+def test_generate_inspection_bundle_with_pitching_result(tmp_path) -> None:
+    from app.schemas.pitching import (
+        PitchingAnalysisResult,
+        PitchingBiomechanicalMetrics,
+        PitchingDeliveryWindow,
+        PitchingPhase,
+        PitchingPhaseType,
+    )
+
+    frame_dir = tmp_path / "frames"
+    frame_dir.mkdir()
+    for frame_index in range(2):
+        image = np.zeros((64, 64, 3), dtype=np.uint8)
+        cv2.imwrite(str(frame_dir / f"frame_{frame_index:06d}.png"), image)
+
+    movement = MovementRecording(
+        recording_id="pitch-bundle-movement",
+        source_video_id="pitch-video",
+        fps=30.0,
+        duration_seconds=2.0 / 30.0,
+        frames=[
+            FramePose(
+                frame_index=0,
+                timestamp_seconds=0.0,
+                detected=True,
+                joints={"right_wrist": _make_joint(x=0.5, y=0.5)},
+            ),
+            FramePose(
+                frame_index=1,
+                timestamp_seconds=1.0 / 30.0,
+                detected=True,
+                joints={"right_wrist": _make_joint(x=0.52, y=0.48)},
+            ),
+        ],
+        quality_summary=_base_quality(),
+    )
+    kinematic = KinematicRecording(
+        recording_id="pitch-bundle-kinematics",
+        source_video_id="pitch-video",
+        source_recording_id="pitch-bundle-movement",
+        fps=30.0,
+        duration_seconds=2.0 / 30.0,
+        frames=[
+            KinematicFrame(
+                frame_index=0,
+                timestamp_seconds=0.0,
+                joint_angles={},
+                segment_vectors={},
+                linear_velocities={},
+            ),
+            KinematicFrame(
+                frame_index=1,
+                timestamp_seconds=1.0 / 30.0,
+                joint_angles={},
+                segment_vectors={},
+                linear_velocities={},
+            ),
+        ],
+    )
+
+    pitching_res = PitchingAnalysisResult(
+        video_id="pitch-video",
+        delivery_detected=True,
+        delivery_window=PitchingDeliveryWindow(
+            start_frame=0,
+            end_frame=1,
+            duration_seconds=0.066,
+            foot_strike_frame=0,
+            release_frame=1,
+            peak_hand_speed=3.0,
+            phases=[
+                PitchingPhase(
+                    phase_name=PitchingPhaseType.RELEASE,
+                    start_frame=0,
+                    end_frame=1,
+                    start_time_seconds=0.0,
+                    end_time_seconds=0.033,
+                    duration_seconds=0.033,
+                )
+            ],
+        ),
+        metrics=PitchingBiomechanicalMetrics(
+            handedness="RHP",
+            stride_length_normalized=0.5,
+            arm_slot_angle_deg=45.0,
+            lead_knee_angle_at_foot_strike=130.0,
+            lead_knee_angle_at_release=140.0,
+            max_shoulder_external_rotation_deg=165.0,
+        ),
+    )
+
+    bundle = InspectionService.generate_inspection_bundle(
+        movement=movement,
+        kinematic=kinematic,
+        extracted_frames_dir=frame_dir,
+        output_dir=tmp_path / "inspection",
+        pitching_result=pitching_res,
+    )
+
+    assert Path(bundle["quality_summary"]).exists()
+    assert Path(bundle["overlay_video"]).exists()
+    assert Path(bundle["overlay_frames"]).exists()
+    assert Path(bundle["joint_angles_plot"]).exists()
+    assert Path(bundle["linear_velocity_plot"]).exists()

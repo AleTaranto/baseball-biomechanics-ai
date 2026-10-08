@@ -6,7 +6,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from app.schemas.bat import BatDetection
-from app.services.bat_tracker_service import ShaftEdgeBatTracker
+from app.services.bat_tracker_service import ColorMarkerBatTracker, ShaftEdgeBatTracker
 
 
 def test_bat_tracker_angle_and_sweet_spot() -> None:
@@ -114,3 +114,12 @@ def test_bat_tracker_gap_interpolation() -> None:
     assert math.isclose(detections[1].handle_point[0], 0.3, abs_tol=1e-3)
     assert detections[1].barrel_point is not None
     assert math.isclose(detections[1].barrel_point[0], 0.5, abs_tol=1e-3)
+
+
+def test_color_marker_bat_tracker_detect_in_image_ndarray() -> None:
+    tracker = ColorMarkerBatTracker()
+    # Create black canvas 200x200 BGR
+    canvas = np.zeros((200, 200, 3), dtype=np.uint8)
+    # Test with empty image (no markers)
+    res = tracker.detect_in_image(canvas)
+    assert res is None
