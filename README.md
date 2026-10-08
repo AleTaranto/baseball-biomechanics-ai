@@ -28,7 +28,7 @@ The project includes:
 - **Computer Vision Bat Tracker & Multi-Signal Contact Detector**: Canny/Hough line detection and consensus-based contact frame identification.
 - **Two-Pass Performance Pipeline**: Fast downsampled coarse scanning with deep pose processing pruned to active motion windows (achieving >30% compute reduction).
 - **Benchmark & Accuracy Suite**: Throughput profilers, FPS speedup multipliers, and precision validation against ground-truth signals.
-- **Advanced Visual Overlays & Video Rendering**: Skeleton wireframes, bat trajectory trails, arm slot rays, and HUD phase badges burned into MP4 videos.
+- **Advanced Visual Overlays & Video Rendering**: Skeleton wireframes with anatomically scaled 3D pose projections, stabilized 2D bat trajectory trails, pitching stride baseline indicators, arm slot vector rays, and HUD phase badges burned into MP4 videos.
 - **Production REST API**: Full FastAPI route suite (`/api/v1/videos`, `/api/v1/analysis`, `/api/v1/pipeline`, `/api/v1/benchmark`).
 - **Interactive Web Visualizer Dashboard**: Modern HTML5/Tailwind/Chart.js web interface served at `/dashboard` with video scrubbing, synced kinematics graphs, overlay toggles, and real-time metric cards.
 
@@ -234,20 +234,24 @@ This repository includes a GitHub Project for tracking milestones and backlog it
 
 - GitHub Project: https://github.com/users/AleTaranto/projects/1
 
-## Roadmap
+## Roadmap & Implementation Milestones
 
-The long-term roadmap is organized in milestones covering:
+All 12 major execution milestones (Tasks 001–019) are fully implemented and verified:
 
-1. repository bootstrap and foundation
-2. video ingestion and validation
-3. frame extraction and processing
-4. pose estimation
-5. swing segmentation
-6. biomechanical data model
-7. metrics engine
-8. interpretation and recommendations
+1. **Milestone 0: Repository Bootstrap** `[Completed]` — FastAPI, Docker, pyproject, pytest, ruff, mypy, CI workflows.
+2. **Milestone 1: Video Ingestion & Validation** `[Completed]` — Upload routes, 120 FPS & resolution quality gates.
+3. **Milestone 2: Frame Extraction & Processing** `[Completed]` — High-throughput OpenCV decoding and caching.
+4. **Milestone 3: Pose Estimation** `[Completed]` — Provider-agnostic MediaPipe BlazePose keypoint extraction.
+5. **Milestone 4: Movement Data Model & Validation** `[Completed]` — Canonical `MovementRecording` & Butterworth temporal filtering.
+6. **Milestone 5: Kinematics Engine** `[Completed]` — Joint angles, linear/angular velocities, derivative estimation.
+7. **Milestone 6: Swing & Pitching Segmentation** `[Completed]` — Automated batting swing and pitch delivery phase boundaries.
+8. **Milestone 7: Batting Biomechanical Metrics Engine** `[Completed]` — X-Factor separation, torso tilt, kinetic sequencing.
+9. **Milestone 8: Computer Vision Bat Tracker & Contact Detector** `[Completed]` — Shaft edge detection, attack angle, consensus contact timing.
+10. **Milestone 9: Pitching Biomechanical Analyzer** `[Completed]` — Pitching delivery phases, stride length, arm slot angle.
+11. **Milestone 10: Two-Pass Performance Pipeline & Benchmarking** `[Completed]` — Coarse motion pruning (>30% speedup) & accuracy suite.
+12. **Milestone 11 & 12: Advanced Visual Overlays & Web Visualizer Dashboard** `[Completed]` — Skeleton wireframes, bat trails, arm slot rays, HUD banners, production REST API, and interactive HTML5/Tailwind/Chart.js dashboard at `/dashboard`.
 
-See `IMPLEMENTATION_PLAN.md` and `ROADMAP.md` for the full plan.
+See `IMPLEMENTATION_PLAN.md` and `ROADMAP.md` for complete specification breakdowns.
 
 ## Contributing
 
@@ -267,6 +271,9 @@ See:
 - `docs/biomechanics/overview.md`
 - `knowledge/README.md`
 
-## Important note
+## Recent Enhancements & Fixes
 
-This repository is intentionally in an early stage. The goal is not to ship a complete biomechanical analysis platform in one step, but to create a robust foundation that can evolve safely and predictably.
+- **Anatomical Scale & 3D Pose Projection**: Corrected depth scaling and anatomical proportions for 3D skeleton rendering and kinematic vector calculations.
+- **Bat Tracker Overlay Stabilization**: Stabilized 2D bat shaft detection, sweet spot positioning, and trajectory trails across motion-blurred frames.
+- **Pitching Visual Overlays**: Integrated stride length connection baselines, arm slot angle rays, and release event flash banners into inspection video rendering and API outputs.
+- **Code Quality & CI Reliability**: Fixed type assignment edge cases and ensured 100% clean test execution and type checks (`pytest`, `ruff`, `mypy`).

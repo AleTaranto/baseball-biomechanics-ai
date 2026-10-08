@@ -490,10 +490,11 @@ class ColorMarkerBatTracker(BaseBatTracker):
 
         Returns ((handle_x, handle_y), (barrel_x, barrel_y), confidence).
         """
-        if isinstance(image_input, np.ndarray):
-            img = image_input
-        else:
-            img = cv2.imread(str(image_input))
+        img: np.ndarray | None = (
+            image_input
+            if isinstance(image_input, np.ndarray)
+            else cv2.imread(str(image_input))
+        )
         if img is None:
             return None
 
