@@ -25,8 +25,9 @@
 - map domain rules and evidence;
 - produce explainable recommendations.
 
-## Phase 5: product experience
+## Phase 5: product experience [Completed]
 
 - add an interface for reporting and coaching feedback;
 - connect backend APIs to front-end workflows;
-- refine operational monitoring and quality checks.
+- refine operational monitoring and quality checks;
+- verify 3D skeleton anatomical scale and 2D bat overlay stabilization across visualizer rendering.

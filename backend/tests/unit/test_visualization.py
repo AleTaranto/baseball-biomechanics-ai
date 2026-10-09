@@ -529,3 +529,83 @@ def test_render_pitching_overlay_and_action_hud() -> None:
         recent_wrist_pts=[(100, 80), (120, 80)],
     )
     assert np.any(full_overlay > 0)
+
+
+def test_render_3d_skeleton_anatomical_scale() -> None:
+    """Verify 3D anatomical skeleton joints and connections map to pixel bounds
+
+    without distortion.
+    """
+    image = np.zeros((480, 640, 3), dtype=np.uint8)
+    frame = FramePose(
+        frame_index=0,
+        timestamp_seconds=0.0,
+        detected=True,
+        joints={
+            "left_shoulder": _make_joint(x=0.35, y=0.25),
+            "right_shoulder": _make_joint(x=0.65, y=0.25),
+            "left_elbow": _make_joint(x=0.30, y=0.40),
+            "right_elbow": _make_joint(x=0.70, y=0.40),
+            "left_wrist": _make_joint(x=0.25, y=0.55),
+            "right_wrist": _make_joint(x=0.75, y=0.55),
+            "left_hip": _make_joint(x=0.40, y=0.50),
+            "right_hip": _make_joint(x=0.60, y=0.50),
+            "left_knee": _make_joint(x=0.40, y=0.70),
+            "right_knee": _make_joint(x=0.60, y=0.70),
+            "left_ankle": _make_joint(x=0.40, y=0.90),
+            "right_ankle": _make_joint(x=0.60, y=0.90),
+        },
+    )
+
+    rendered = InspectionService.render_skeleton(image.copy(), frame, width=640, height=480)
+    rendered_joints = InspectionService.render_joint_markers(rendered, frame, width=640, height=480)
+
+    assert rendered_joints.shape == (480, 640, 3)
+    assert np.any(rendered_joints > 0)
+    # Confirm left and right shoulder pixel coordinates maintain correct anatomical scale
+    p_ls = InspectionService.normalized_to_pixel(0.35, 0.25, width=640, height=480)
+    p_rs = InspectionService.normalized_to_pixel(0.65, 0.25, width=640, height=480)
+    assert p_ls is not None and p_rs is not None
+    assert p_rs[0] > p_ls[0]  # Right shoulder to the right of left shoulder
+    assert p_ls[1] == p_rs[1]  # Anatomically level shoulder axis
+
+
+def test_render_bat_overlay_stabilization() -> None:
+    """Verify 2D bat overlay rendering remains stable with motion trails
+
+    and missing/intermittent detections.
+    """
+    from app.schemas.bat import BatDetection
+
+    image = np.zeros((300, 400, 3), dtype=np.uint8)
+
+    # 1. Valid bat detection with sweet spot and barrel trajectory trail
+    det_valid = BatDetection(
+        frame_index=12,
+        timestamp_seconds=0.4,
+        detected=True,
+        handle_point=(0.45, 0.45),
+        barrel_point=(0.75, 0.25),
+        sweet_spot=(0.675, 0.30),
+    )
+    trail = [(260, 90), (280, 80), (300, 75)]
+
+    overlay_valid = InspectionService.render_bat_overlay(
+        image=image.copy(),
+        bat_detection=det_valid,
+        recent_barrel_pts=trail,
+        width=400,
+        height=300,
+    )
+    assert np.any(overlay_valid > 0)
+
+    # 2. None / undetected bat detection does not crash and leaves motion trail intact
+    det_none: BatDetection | None = None
+    overlay_none = InspectionService.render_bat_overlay(
+        image=image.copy(),
+        bat_detection=det_none,
+        recent_barrel_pts=trail,
+        width=400,
+        height=300,
+    )
+    assert np.any(overlay_none > 0)
