@@ -16,7 +16,7 @@ All project milestones and features are tracked and executed as discrete tasks i
 | [010](010-bat-tracking.md) | Standalone Bat Tracker | Canny/Hough shaft detection, sweet spot tracking, and barrel attack angle. | Completed |
 | [011](011-contact-detection.md) | Multi-Signal Contact Detector | Consensus timing across bat speed, hand deceleration, and segmentation priors. | Completed |
 | [012](012-generic-biomechanics-engine.md) | Generic Biomechanics Engine | Reusable mathematical and kinematic primitives agnostic to sport action. | Completed |
-| [013](013-advanced-biomechanical-visualization.md) | Advanced Visual Overlays | Bat trajectory trails, HUD phase badges, live X-factor, and contact flash banners. | Completed |
+| [013](013-advanced-biomechanical-visualization.md) | Advanced Visual Overlays | Bat trajectory trails, HUD phase badges, live X-factor, contact flash banners, 3D anatomical skeleton scale correction, and 2D bat overlay stabilization. | Completed |
 | [014](014-two-pass-performance-pipeline.md) | Two-Pass Performance Pipeline | Fast downsampled coarse scan and deep pose estimation pruning on active windows. | Completed |
 | [015](015-benchmark-and-accuracy-suite.md) | Benchmark & Accuracy Suite | Throughput profiler, FPS speedup multipliers, and kinematic error benchmarking. | Completed |
 | [016](016-pitching-biomechanics-analyzer.md) | Pitching Biomechanics Analyzer | Pitch delivery milestones, temporal phases, stride length, and arm slot angle. | Completed |

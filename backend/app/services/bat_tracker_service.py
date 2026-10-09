@@ -452,14 +452,14 @@ class ColorMarkerBatTracker(BaseBatTracker):
             cx, cy = int(roi_center[0] * w), int(roi_center[1] * h)
             r = int(roi_radius_ratio * diag)
             cv2.circle(roi_mask, (cx, cy), max(15, r), 255, -1)
-            mask = cv2.bitwise_and(mask, roi_mask)
+            mask = cv2.bitwise_and(mask, roi_mask)  # type: ignore[assignment]
 
         # Morphological noise removal
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_DILATE, kernel, iterations=1)
+        mask_open = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+        clean_mask = cv2.morphologyEx(mask_open, cv2.MORPH_DILATE, kernel, iterations=1)
 
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(clean_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
             return None
 
@@ -490,6 +490,7 @@ class ColorMarkerBatTracker(BaseBatTracker):
 
         Returns ((handle_x, handle_y), (barrel_x, barrel_y), confidence).
         """
+        img: np.ndarray | None
         if isinstance(image_input, np.ndarray):
             img = image_input
         else:
@@ -520,14 +521,14 @@ class ColorMarkerBatTracker(BaseBatTracker):
         if handle_res is not None and barrel_res is not None:
             handle_pt, h_conf = handle_res
             barrel_pt, b_conf = barrel_res
-            length = math.hypot(barrel_pt[0] - handle_pt[0], barrel_pt[1] - handle_pt[1])
+            length = float(math.hypot(barrel_pt[0] - handle_pt[0], barrel_pt[1] - handle_pt[1]))
             if self.min_bat_length_ratio <= length <= self.max_bat_length_ratio:
                 conf = min(0.98, float(0.5 * (h_conf + b_conf) + 0.15))
                 return (handle_pt, barrel_pt, conf)
 
         if barrel_res is not None and hand_anchor is not None:
             barrel_pt, b_conf = barrel_res
-            length = math.hypot(barrel_pt[0] - hand_anchor[0], barrel_pt[1] - hand_anchor[1])
+            length = float(math.hypot(barrel_pt[0] - hand_anchor[0], barrel_pt[1] - hand_anchor[1]))
             if self.min_bat_length_ratio <= length <= self.max_bat_length_ratio:
                 conf = min(0.85, float(b_conf * 0.85))
                 return (hand_anchor, barrel_pt, conf)
