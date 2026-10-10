@@ -75,16 +75,25 @@ class MediaPipePoseEstimator(PoseEstimator):
         min_detection_confidence: float = 0.5,
         min_tracking_confidence: float = 0.5,
     ) -> None:
-        self.model_path = self._resolve_model_path(model_path)
-        self._pose = PoseLandmarker.create_from_options(
-            PoseLandmarkerOptions(
-                base_options=BaseOptions(model_asset_path=str(self.model_path)),
-                running_mode=RunningMode.IMAGE,
-                min_pose_detection_confidence=min_detection_confidence,
-                min_pose_presence_confidence=min_tracking_confidence,
-                min_tracking_confidence=min_tracking_confidence,
+        self.model_path_arg = model_path
+        self.min_detection_confidence = min_detection_confidence
+        self.min_tracking_confidence = min_tracking_confidence
+        self._pose_landmarker: PoseLandmarker | None = None
+
+    @property
+    def pose(self) -> PoseLandmarker:
+        if self._pose_landmarker is None:
+            model_path = self._resolve_model_path(self.model_path_arg)
+            self._pose_landmarker = PoseLandmarker.create_from_options(
+                PoseLandmarkerOptions(
+                    base_options=BaseOptions(model_asset_path=str(model_path)),
+                    running_mode=RunningMode.IMAGE,
+                    min_pose_detection_confidence=self.min_detection_confidence,
+                    min_pose_presence_confidence=self.min_tracking_confidence,
+                    min_tracking_confidence=self.min_tracking_confidence,
+                )
             )
-        )
+        return self._pose_landmarker
 
     def _resolve_model_path(self, model_path: str | Path | None) -> Path:
         if model_path is not None:
@@ -155,7 +164,7 @@ class MediaPipePoseEstimator(PoseEstimator):
 
         rgb_frame = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-        result = self._pose.detect(mp_image)
+        result = self.pose.detect(mp_image)
         if not result.pose_landmarks:
             return PoseFrameResult(
                 frame_index=frame_index,
@@ -197,7 +206,7 @@ class MediaPipePoseEstimator(PoseEstimator):
     ) -> Path | None:
         rgb_frame = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-        result = self._pose.detect(mp_image)
+        result = self.pose.detect(mp_image)
         if not result.pose_landmarks:
             return None
 
