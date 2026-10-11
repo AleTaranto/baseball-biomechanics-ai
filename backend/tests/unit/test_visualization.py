@@ -529,3 +529,50 @@ def test_render_pitching_overlay_and_action_hud() -> None:
         recent_wrist_pts=[(100, 80), (120, 80)],
     )
     assert np.any(full_overlay > 0)
+
+
+def test_pitching_overlay_empty_wrist_pts() -> None:
+    from app.schemas.pitching import (
+        PitchingAnalysisResult,
+        PitchingBiomechanicalMetrics,
+        PitchingDeliveryWindow,
+    )
+
+    image = np.zeros((100, 100, 3), dtype=np.uint8)
+    frame = FramePose(
+        frame_index=5,
+        timestamp_seconds=0.16,
+        detected=True,
+        joints={
+            "right_shoulder": _make_joint(x=0.5, y=0.3),
+            "right_elbow": _make_joint(x=0.6, y=0.4),
+        },
+    )
+    pitching_res = PitchingAnalysisResult(
+        video_id="empty_wrist_test",
+        delivery_detected=True,
+        delivery_window=PitchingDeliveryWindow(
+            start_frame=0,
+            end_frame=10,
+            duration_seconds=0.33,
+            foot_strike_frame=3,
+            release_frame=5,
+        ),
+        metrics=PitchingBiomechanicalMetrics(
+            handedness="RHP",
+            stride_length_normalized=0.4,
+            arm_slot_angle_deg=40.0,
+            max_shoulder_external_rotation_deg=160.0,
+        ),
+    )
+
+    overlay = InspectionService.render_pitching_overlay(
+        image=image.copy(),
+        frame=frame,
+        pitching_result=pitching_res,
+        recent_wrist_pts=[],
+        width=100,
+        height=100,
+    )
+    assert overlay is not None
+    assert overlay.shape == (100, 100, 3)
