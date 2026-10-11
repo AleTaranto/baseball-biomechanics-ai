@@ -114,3 +114,22 @@ def test_bat_tracker_gap_interpolation() -> None:
     assert math.isclose(detections[1].handle_point[0], 0.3, abs_tol=1e-3)
     assert detections[1].barrel_point is not None
     assert math.isclose(detections[1].barrel_point[0], 0.5, abs_tol=1e-3)
+
+
+def test_color_marker_bat_tracker_detect_in_image_ndarray() -> None:
+    from app.services.bat_tracker_service import ColorMarkerBatTracker
+
+    tracker = ColorMarkerBatTracker()
+    # Create a synthetic HSV image as ndarray with neon green (barrel) and neon orange (handle)
+    img_bgr = np.zeros((300, 300, 3), dtype=np.uint8)
+    # Neon Green: HSV ~ (60, 200, 200) -> BGR ~ (0, 200, 0)
+    cv2.circle(img_bgr, (200, 100), 10, (0, 255, 0), -1)
+    # Neon Orange: HSV ~ (14, 200, 200) -> BGR ~ (0, 128, 255)
+    cv2.circle(img_bgr, (100, 100), 10, (0, 128, 255), -1)
+
+    result = tracker.detect_in_image(img_bgr)
+    assert result is not None
+    handle, barrel, conf = result
+    assert conf > 0.5
+    assert math.isclose(handle[0], 100 / 300, abs_tol=0.05)
+    assert math.isclose(barrel[0], 200 / 300, abs_tol=0.05)
