@@ -14,21 +14,21 @@ The platform provides structured observations, evidence-based interpretations, k
 
 ## Current status
 
-All 19 execution tasks (Tasks 001–019) across the entire implementation roadmap are complete.
+All 19 execution tasks (Tasks 001–019) across Milestones 0 through 12 are fully implemented, verified, and passing test coverage.
 
-The project includes:
+The system includes:
 
-- **Video Ingestion & Validation**: Multi-format video ingestion with framerate and resolution validation.
-- **High-Throughput Frame Extraction**: OpenCV decoding with frame caching and manifest tracking.
-- **Provider-Agnostic Pose Estimation**: MediaPipe BlazePose keypoint extraction with temporal filtering.
-- **Canonical Movement & Kinematic Models**: Unified time-series schemas for joint angles, segment vectors, angular velocities, and accelerations.
-- **Swing & Delivery Segmentation**: Automated temporal phase detection (Stance, Load, Stride, Acceleration, Contact, Follow Through; Windup, Cocking, Acceleration, Release, Deceleration).
-- **Batting Biomechanical Metrics Engine**: Peak barrel speed, X-Factor hip-shoulder separation, torso tilt, head drift, and hand path calculations.
-- **Pitching Biomechanical Analyzer**: Stride length (% body height), arm slot angle, elbow flexion, pelvis/torso angular velocity, and release point metrics.
-- **Computer Vision Bat Tracker & Multi-Signal Contact Detector**: Canny/Hough line detection and consensus-based contact frame identification.
-- **Two-Pass Performance Pipeline**: Fast downsampled coarse scanning with deep pose processing pruned to active motion windows (achieving >30% compute reduction).
+- **Video Ingestion & Validation**: Multi-format video ingestion (MP4, MOV, AVI) with framerate (120+ FPS) and resolution quality gates.
+- **High-Throughput Frame Extraction**: OpenCV decoding with timestamp synchronization, frame caching, and manifest generation.
+- **Provider-Agnostic Pose Estimation**: MediaPipe BlazePose keypoint extraction with temporal Butterworth filtering and 3D skeleton anatomical scale normalization.
+- **Canonical Movement & Kinematic Models**: Unified time-series schemas for joint angles, segment vectors, linear/angular velocities, and accelerations.
+- **Swing & Pitch Delivery Segmentation**: Automated temporal phase detection (Batting: Stance, Load, Stride, Downswing, Contact, Follow Through; Pitching: Windup, Leg Lift, Stride, Cocking, Acceleration, Release, Deceleration).
+- **Batting Biomechanical Metrics Engine**: Peak barrel speed, X-Factor hip-shoulder separation, torso tilt, head drift, hand path, and kinetic chain proximal-to-distal sequencing.
+- **Pitching Biomechanical Analyzer**: Stride length (% body height), arm slot angle, elbow flexion, pelvis/torso rotational velocities, shoulder external rotation layback, and release height/extension.
+- **Computer Vision Bat Tracker & Multi-Signal Contact Detector**: Canny/Hough line detection, HSV optical color-marker tracking, hybrid fallback, and multi-signal consensus contact detection.
+- **Two-Pass Performance Pipeline**: Fast downsampled coarse scanning with deep pose estimation pruned to active motion windows (achieving >30% compute reduction).
 - **Benchmark & Accuracy Suite**: Throughput profilers, FPS speedup multipliers, and precision validation against ground-truth signals.
-- **Advanced Visual Overlays & Video Rendering**: Skeleton wireframes, bat trajectory trails, arm slot rays, and HUD phase badges burned into MP4 videos.
+- **Advanced Visual Overlays & Video Rendering**: Skeleton wireframes with 3D scale stability, bat trajectory trails, pitching wrist motion trails, stride length baseline connections, arm slot rays, and HUD phase badges burned into MP4 videos.
 - **Production REST API**: Full FastAPI route suite (`/api/v1/videos`, `/api/v1/analysis`, `/api/v1/pipeline`, `/api/v1/benchmark`).
 - **Interactive Web Visualizer Dashboard**: Modern HTML5/Tailwind/Chart.js web interface served at `/dashboard` with video scrubbing, synced kinematics graphs, overlay toggles, and real-time metric cards.
 
@@ -170,7 +170,7 @@ The repository is organized around a modular architecture:
 - `specs/` — API and product specifications
 - `tasks/` — milestone and execution tracking
 - `sample-data/` — metadata for test videos and future fixtures
-- `frontend/` — reserved for future web UI work
+- `frontend/` — interactive web visualizer dashboard (HTML5, Tailwind CSS, Chart.js)
 
 ## Key goals
 
@@ -267,6 +267,6 @@ See:
 - `docs/biomechanics/overview.md`
 - `knowledge/README.md`
 
-## Important note
+## Implementation Summary & Progress
 
-This repository is intentionally in an early stage. The goal is not to ship a complete biomechanical analysis platform in one step, but to create a robust foundation that can evolve safely and predictably.
+All tasks (Tasks 001 through 019) across Milestones 0 to 12 are fully implemented, thoroughly tested, and integrated into a production-grade FastAPI application and interactive Web Visualizer Dashboard.

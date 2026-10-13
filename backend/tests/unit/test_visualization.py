@@ -529,3 +529,92 @@ def test_render_pitching_overlay_and_action_hud() -> None:
         recent_wrist_pts=[(100, 80), (120, 80)],
     )
     assert np.any(full_overlay > 0)
+
+
+def test_render_pitching_overlay_lhp_and_foot_strike() -> None:
+    from app.schemas.pitching import (
+        PitchingAnalysisResult,
+        PitchingBiomechanicalMetrics,
+        PitchingDeliveryWindow,
+        PitchingPhase,
+        PitchingPhaseType,
+    )
+
+    image = np.zeros((200, 200, 3), dtype=np.uint8)
+    frame_foot_strike = FramePose(
+        frame_index=7,
+        timestamp_seconds=0.23,
+        detected=True,
+        joints={
+            "left_wrist": _make_joint(x=0.4, y=0.4),
+            "left_shoulder": _make_joint(x=0.45, y=0.35),
+            "left_elbow": _make_joint(x=0.4, y=0.4),
+            "right_ankle": _make_joint(x=0.65, y=0.85),
+            "left_ankle": _make_joint(x=0.35, y=0.85),
+        },
+    )
+
+    pitching_res_lhp = PitchingAnalysisResult(
+        video_id="pitch_overlay_lhp",
+        delivery_detected=True,
+        delivery_window=PitchingDeliveryWindow(
+            start_frame=0,
+            end_frame=20,
+            duration_seconds=0.66,
+            foot_strike_frame=7,
+            release_frame=12,
+            peak_hand_speed=2.8,
+            phases=[
+                PitchingPhase(
+                    phase_name=PitchingPhaseType.STRIDE,
+                    start_frame=5,
+                    end_frame=8,
+                    start_time_seconds=0.16,
+                    end_time_seconds=0.26,
+                    duration_seconds=0.10,
+                )
+            ],
+        ),
+        metrics=PitchingBiomechanicalMetrics(
+            handedness="LHP",
+            stride_length_normalized=0.50,
+            arm_slot_angle_deg=52.0,
+            max_shoulder_external_rotation_deg=165.0,
+        ),
+    )
+
+    overlay_img = InspectionService.render_pitching_overlay(
+        image=image.copy(),
+        frame=frame_foot_strike,
+        pitching_result=pitching_res_lhp,
+        recent_wrist_pts=[(80, 80), (75, 80)],
+        width=200,
+        height=200,
+    )
+    assert np.any(overlay_img > 0)
+
+
+def test_render_pitching_overlay_missing_metrics() -> None:
+    from app.schemas.pitching import PitchingAnalysisResult
+
+    image = np.zeros((200, 200, 3), dtype=np.uint8)
+    frame = FramePose(
+        frame_index=2,
+        timestamp_seconds=0.066,
+        detected=True,
+        joints={"right_wrist": _make_joint(x=0.5, y=0.5)},
+    )
+    no_delivery_res = PitchingAnalysisResult(
+        video_id="no_delivery",
+        delivery_detected=False,
+    )
+
+    overlay_img = InspectionService.render_pitching_overlay(
+        image=image.copy(),
+        frame=frame,
+        pitching_result=no_delivery_res,
+        recent_wrist_pts=[],
+        width=200,
+        height=200,
+    )
+    assert overlay_img is not None
