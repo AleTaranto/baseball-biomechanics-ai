@@ -448,7 +448,7 @@ class ColorMarkerBatTracker(BaseBatTracker):
         mask = cv2.inRange(hsv, lower_np, upper_np)
 
         if roi_center is not None and roi_radius_ratio is not None:
-            roi_mask = np.zeros_like(mask)
+            roi_mask = np.zeros((h, w), dtype=np.uint8)
             cx, cy = int(roi_center[0] * w), int(roi_center[1] * h)
             r = int(roi_radius_ratio * diag)
             cv2.circle(roi_mask, (cx, cy), max(15, r), 255, -1)
@@ -490,6 +490,7 @@ class ColorMarkerBatTracker(BaseBatTracker):
 
         Returns ((handle_x, handle_y), (barrel_x, barrel_y), confidence).
         """
+        img: np.ndarray | None
         if isinstance(image_input, np.ndarray):
             img = image_input
         else:
