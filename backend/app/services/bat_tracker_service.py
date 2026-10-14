@@ -490,6 +490,7 @@ class ColorMarkerBatTracker(BaseBatTracker):
 
         Returns ((handle_x, handle_y), (barrel_x, barrel_y), confidence).
         """
+        img: np.ndarray | None
         if isinstance(image_input, np.ndarray):
             img = image_input
         else:
@@ -683,11 +684,13 @@ class HybridBatTracker(BaseBatTracker):
                     frames_dir=frames_dir,
                     movement=movement,
                 )
-                for idx, det in enumerate(color_result.detections):
+                updated_detections = list(color_result.detections)
+                for idx, det in enumerate(updated_detections):
                     if not det.detected and idx < len(edge_result.detections):
                         e_det = edge_result.detections[idx]
                         if e_det.detected:
-                            color_result.detections[idx] = e_det
+                            updated_detections[idx] = e_det
+                color_result.detections = updated_detections
 
                 self._interpolate_short_gaps(color_result.detections)
                 color_result.trajectory = self._build_trajectory(color_result.detections)
