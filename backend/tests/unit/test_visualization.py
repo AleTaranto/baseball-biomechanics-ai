@@ -529,3 +529,73 @@ def test_render_pitching_overlay_and_action_hud() -> None:
         recent_wrist_pts=[(100, 80), (120, 80)],
     )
     assert np.any(full_overlay > 0)
+
+
+def test_render_bat_overlay_decaying_trail() -> None:
+    from app.schemas.bat import BatDetection
+
+    image = np.zeros((100, 100, 3), dtype=np.uint8)
+    bat_det = BatDetection(
+        frame_index=1,
+        timestamp_seconds=0.033,
+        detected=True,
+        handle_point=(0.5, 0.5),
+        barrel_point=(0.8, 0.2),
+        sweet_spot=(0.725, 0.275),
+    )
+    trail_pts = [(10, 10), (20, 20), (30, 30), (40, 40)]
+
+    annotated = InspectionService.render_bat_overlay(
+        image=image.copy(),
+        bat_detection=bat_det,
+        recent_barrel_pts=trail_pts,
+        width=100,
+        height=100,
+    )
+    assert np.any(annotated > 0)
+
+
+def test_render_pitching_stride_baseline_at_foot_strike() -> None:
+    from app.schemas.pitching import (
+        PitchingAnalysisResult,
+        PitchingBiomechanicalMetrics,
+        PitchingDeliveryWindow,
+    )
+
+    image = np.zeros((100, 100, 3), dtype=np.uint8)
+    frame = FramePose(
+        frame_index=5,
+        timestamp_seconds=0.165,
+        detected=True,
+        joints={
+            "left_ankle": _make_joint(x=0.3, y=0.8),
+            "right_ankle": _make_joint(x=0.7, y=0.8),
+        },
+    )
+
+    pitching_res = PitchingAnalysisResult(
+        video_id="stride_test",
+        delivery_detected=True,
+        delivery_window=PitchingDeliveryWindow(
+            start_frame=0,
+            end_frame=10,
+            duration_seconds=0.33,
+            foot_strike_frame=5,
+            release_frame=8,
+        ),
+        metrics=PitchingBiomechanicalMetrics(
+            handedness="RHP",
+            stride_length_normalized=0.4,
+            arm_slot_angle_deg=45.0,
+            max_shoulder_external_rotation_deg=160.0,
+        ),
+    )
+
+    annotated = InspectionService.render_pitching_overlay(
+        image=image.copy(),
+        frame=frame,
+        pitching_result=pitching_res,
+        width=100,
+        height=100,
+    )
+    assert np.any(annotated > 0)
