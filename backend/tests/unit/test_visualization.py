@@ -529,3 +529,54 @@ def test_render_pitching_overlay_and_action_hud() -> None:
         recent_wrist_pts=[(100, 80), (120, 80)],
     )
     assert np.any(full_overlay > 0)
+
+
+def test_render_bat_overlay_length_clamping_and_taper_geometry() -> None:
+    from app.schemas.bat import BatDetection
+
+    image = np.zeros((300, 300, 3), dtype=np.uint8)
+
+    # Bat detection with close handle and barrel
+    bat_det_short = BatDetection(
+        frame_index=1,
+        timestamp_seconds=0.033,
+        detected=True,
+        handle_point=(0.5, 0.5),
+        barrel_point=(0.52, 0.52),
+        sweet_spot=(0.515, 0.515),
+    )
+
+    rendered = InspectionService.render_bat_overlay(
+        image=image.copy(),
+        bat_detection=bat_det_short,
+        recent_barrel_pts=[(150, 150)],
+        width=300,
+        height=300,
+    )
+    assert rendered is not None
+    assert np.any(rendered > 0)
+
+
+def test_render_bat_overlay_presets() -> None:
+    from app.schemas.bat import BatDetection
+
+    image = np.zeros((200, 200, 3), dtype=np.uint8)
+    bat_det = BatDetection(
+        frame_index=0,
+        timestamp_seconds=0.0,
+        detected=True,
+        handle_point=(0.2, 0.2),
+        barrel_point=(0.8, 0.8),
+        sweet_spot=(0.65, 0.65),
+    )
+
+    for preset in ["neon_green_orange", "neon_orange_green", "yellow_pink"]:
+        out = InspectionService.render_bat_overlay(
+            image=image.copy(),
+            bat_detection=bat_det,
+            recent_barrel_pts=[],
+            width=200,
+            height=200,
+        )
+        assert out is not None
+        assert np.any(out > 0)

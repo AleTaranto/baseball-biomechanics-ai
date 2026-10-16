@@ -29,4 +29,4 @@
 
 - add an interface for reporting and coaching feedback;
 - connect backend APIs to front-end workflows;
-- refine operational monitoring and quality checks.
+- refine operational monitoring, CI quality checks, 3D anatomical scaling, and stabilized 2D visual overlays.

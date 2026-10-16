@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -445,14 +446,16 @@ class ColorMarkerBatTracker(BaseBatTracker):
 
         lower_np = np.array(lower, dtype=np.uint8)
         upper_np = np.array(upper, dtype=np.uint8)
-        mask = cv2.inRange(hsv, lower_np, upper_np)
+        mask: Any = cv2.inRange(hsv, lower_np, upper_np)
 
         if roi_center is not None and roi_radius_ratio is not None:
             roi_mask = np.zeros_like(mask)
             cx, cy = int(roi_center[0] * w), int(roi_center[1] * h)
             r = int(roi_radius_ratio * diag)
             cv2.circle(roi_mask, (cx, cy), max(15, r), 255, -1)
-            mask = cv2.bitwise_and(mask, roi_mask)
+            res_mask = cv2.bitwise_and(mask, roi_mask)
+            if res_mask is not None:
+                mask = res_mask  # type: ignore[assignment]
 
         # Morphological noise removal
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
@@ -490,6 +493,7 @@ class ColorMarkerBatTracker(BaseBatTracker):
 
         Returns ((handle_x, handle_y), (barrel_x, barrel_y), confidence).
         """
+        img: np.ndarray | None
         if isinstance(image_input, np.ndarray):
             img = image_input
         else:
