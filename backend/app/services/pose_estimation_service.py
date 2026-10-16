@@ -76,15 +76,18 @@ class MediaPipePoseEstimator(PoseEstimator):
         min_tracking_confidence: float = 0.5,
     ) -> None:
         self.model_path = self._resolve_model_path(model_path)
-        self._pose = PoseLandmarker.create_from_options(
-            PoseLandmarkerOptions(
-                base_options=BaseOptions(model_asset_path=str(self.model_path)),
-                running_mode=RunningMode.IMAGE,
-                min_pose_detection_confidence=min_detection_confidence,
-                min_pose_presence_confidence=min_tracking_confidence,
-                min_tracking_confidence=min_tracking_confidence,
+        try:
+            self._pose = PoseLandmarker.create_from_options(
+                PoseLandmarkerOptions(
+                    base_options=BaseOptions(model_asset_path=str(self.model_path)),
+                    running_mode=RunningMode.IMAGE,
+                    min_pose_detection_confidence=min_detection_confidence,
+                    min_pose_presence_confidence=min_tracking_confidence,
+                    min_tracking_confidence=min_tracking_confidence,
+                )
             )
-        )
+        except Exception:
+            self._pose = None
 
     def _resolve_model_path(self, model_path: str | Path | None) -> Path:
         if model_path is not None:
@@ -144,12 +147,12 @@ class MediaPipePoseEstimator(PoseEstimator):
         frame_index: int,
         timestamp_ms: int,
     ) -> PoseFrameResult:
-        if image is None or image.size == 0:
+        if self._pose is None or image is None or image.size == 0:
             return PoseFrameResult(
                 frame_index=frame_index,
                 timestamp_ms=timestamp_ms,
                 detected=False,
-                error="Input frame is empty.",
+                error="Pose estimator not available.",
                 keypoints=self._empty_keypoints(),
             )
 
@@ -195,6 +198,8 @@ class MediaPipePoseEstimator(PoseEstimator):
         frame_path: Path,
         output_dir: Path,
     ) -> Path | None:
+        if self._pose is None:
+            return None
         rgb_frame = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
         result = self._pose.detect(mp_image)
