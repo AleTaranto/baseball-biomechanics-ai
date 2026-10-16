@@ -114,3 +114,41 @@ def test_bat_tracker_gap_interpolation() -> None:
     assert math.isclose(detections[1].handle_point[0], 0.3, abs_tol=1e-3)
     assert detections[1].barrel_point is not None
     assert math.isclose(detections[1].barrel_point[0], 0.5, abs_tol=1e-3)
+
+
+def test_gap_interpolation_exceeds_max_gap() -> None:
+    tracker = ShaftEdgeBatTracker()
+    # Frame 0 detected, Frames 1, 2, 3 missing (gap length 3), Frame 4 detected
+    detections = [
+        BatDetection(
+            frame_index=0,
+            timestamp_seconds=0.0,
+            detected=True,
+            handle_point=(0.2, 0.4),
+            barrel_point=(0.4, 0.4),
+        ),
+        BatDetection(frame_index=1, timestamp_seconds=0.033, detected=False),
+        BatDetection(frame_index=2, timestamp_seconds=0.066, detected=False),
+        BatDetection(frame_index=3, timestamp_seconds=0.099, detected=False),
+        BatDetection(
+            frame_index=4,
+            timestamp_seconds=0.132,
+            detected=True,
+            handle_point=(0.5, 0.4),
+            barrel_point=(0.7, 0.4),
+        ),
+    ]
+
+    # Attempt interpolation with max_gap=2 (which is smaller than 3)
+    tracker._interpolate_short_gaps(detections, max_gap=2)
+
+    assert detections[1].detected is False
+    assert detections[2].detected is False
+    assert detections[3].detected is False
+
+
+def test_calculate_attack_angle_edge_cases() -> None:
+    tracker = ShaftEdgeBatTracker()
+    # Invalid contact frame (out of bounds)
+    assert tracker._calculate_attack_angle([], contact_frame=0) is None
+    assert tracker._calculate_attack_angle([], contact_frame=-1) is None

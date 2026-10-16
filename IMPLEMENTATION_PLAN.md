@@ -36,7 +36,7 @@ All milestones have been fully implemented and verified with automated test cove
 - Downsampled coarse motion scanning, active window pruning (>30% compute reduction), throughput profiler, and accuracy benchmarking suite.
 
 ## Milestone 11 — Advanced Visual Overlays & Video Rendering [Completed]
-- Skeleton wireframe overlays, bat trajectory trails, arm slot rays, and HUD phase badges burned into video files.
+- Skeleton wireframe overlays, stabilized 2D bat overlays with length clamping and hand-anchor constraints, bat trajectory trails, arm slot rays, and HUD phase badges burned into MP4 video files.
 
 ## Milestone 12 — Production REST API & Interactive Web Dashboard [Completed]
-- FastAPI endpoints for batting, pitching, pipelines, and benchmarks; interactive HTML5/Tailwind/Chart.js web visualizer dashboard mounted at `/dashboard`.
+- FastAPI endpoints for batting, pitching, pipelines, and benchmarks; interactive HTML5/Tailwind/Chart.js web visualizer dashboard mounted at `/dashboard` featuring anatomically grounded Three.js 3D skeleton scaling ($Y=0$ ground plane) and side-by-side comparison analytics.

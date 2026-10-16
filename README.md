@@ -14,7 +14,12 @@ The platform provides structured observations, evidence-based interpretations, k
 
 ## Current status
 
-All 19 execution tasks (Tasks 001–019) across the entire implementation roadmap are complete.
+All 19 execution tasks (Tasks 001–019) across the entire implementation roadmap are complete and verified with 103 automated unit tests, strict `mypy` type safety, and `ruff` linting compliance.
+
+Recent technical enhancements include:
+- **Anatomically Grounded 3D Skeleton Scaling**: Standardized Three.js 3D skeleton scaling anchored on the ground plane ($Y=0$) using normalized stature ($S = \text{height\_meters} / \text{norm\_height}$) and video aspect ratio correction.
+- **Stabilized 2D Bat Overlay Rendering**: Length clamping and hand-anchor constraints preventing trajectory jitter across video frames in both OpenCV backend rendering and frontend canvas drawing.
+- **Chromatic Marker & Hybrid Bat Tracking**: High-contrast HSV optical color marker tracking with configurable color presets (`neon_green_orange`, `neon_orange_green`, `yellow_pink`) and automated edge detection fallback.
 
 The project includes:
 
@@ -25,7 +30,7 @@ The project includes:
 - **Swing & Delivery Segmentation**: Automated temporal phase detection (Stance, Load, Stride, Acceleration, Contact, Follow Through; Windup, Cocking, Acceleration, Release, Deceleration).
 - **Batting Biomechanical Metrics Engine**: Peak barrel speed, X-Factor hip-shoulder separation, torso tilt, head drift, and hand path calculations.
 - **Pitching Biomechanical Analyzer**: Stride length (% body height), arm slot angle, elbow flexion, pelvis/torso angular velocity, and release point metrics.
-- **Computer Vision Bat Tracker & Multi-Signal Contact Detector**: Canny/Hough line detection and consensus-based contact frame identification.
+- **Computer Vision Bat Tracker & Multi-Signal Contact Detector**: Canny/Hough line detection, HSV color marker detection, and consensus-based contact frame identification.
 - **Two-Pass Performance Pipeline**: Fast downsampled coarse scanning with deep pose processing pruned to active motion windows (achieving >30% compute reduction).
 - **Benchmark & Accuracy Suite**: Throughput profilers, FPS speedup multipliers, and precision validation against ground-truth signals.
 - **Advanced Visual Overlays & Video Rendering**: Skeleton wireframes, bat trajectory trails, arm slot rays, and HUD phase badges burned into MP4 videos.
