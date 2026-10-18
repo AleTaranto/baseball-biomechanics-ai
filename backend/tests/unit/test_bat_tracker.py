@@ -114,3 +114,63 @@ def test_bat_tracker_gap_interpolation() -> None:
     assert math.isclose(detections[1].handle_point[0], 0.3, abs_tol=1e-3)
     assert detections[1].barrel_point is not None
     assert math.isclose(detections[1].barrel_point[0], 0.5, abs_tol=1e-3)
+
+
+def test_bat_tracker_gap_interpolation_edge_cases() -> None:
+    tracker = ShaftEdgeBatTracker()
+    # Case 1: Gap exceeds max_gap
+    detections = [
+        BatDetection(
+            frame_index=0,
+            timestamp_seconds=0.0,
+            detected=True,
+            handle_point=(0.2, 0.4),
+            barrel_point=(0.4, 0.4),
+        ),
+        BatDetection(frame_index=1, timestamp_seconds=0.033, detected=False),
+        BatDetection(frame_index=2, timestamp_seconds=0.066, detected=False),
+        BatDetection(frame_index=3, timestamp_seconds=0.099, detected=False),
+        BatDetection(
+            frame_index=4,
+            timestamp_seconds=0.132,
+            detected=True,
+            handle_point=(0.5, 0.4),
+            barrel_point=(0.7, 0.4),
+        ),
+    ]
+    tracker._interpolate_short_gaps(detections, max_gap=2)
+    assert detections[1].detected is False
+    assert detections[2].detected is False
+
+    # Case 2: Out of bounds contact frame for attack angle
+    traj = tracker._build_trajectory(detections)
+    assert tracker._calculate_attack_angle(traj, contact_frame=-1) is None
+    assert tracker._calculate_attack_angle(traj, contact_frame=99) is None
+
+    # Case 3: Zero delta attack angle
+    zero_traj = tracker._build_trajectory([
+        BatDetection(
+            frame_index=0, timestamp_seconds=0.0, detected=True, barrel_point=(0.5, 0.5)
+        ),
+        BatDetection(
+            frame_index=1, timestamp_seconds=0.033, detected=True, barrel_point=(0.5, 0.5)
+        ),
+    ])
+    assert tracker._calculate_attack_angle(zero_traj, contact_frame=1) == 0.0
+
+
+def test_shaft_edge_bat_tracker_with_hand_anchor_masking(tmp_path: Path) -> None:
+    tracker = ShaftEdgeBatTracker(
+        min_line_length_ratio=0.05, max_line_length_ratio=0.8, hough_threshold=10
+    )
+    img_path = tmp_path / "anchor_frame.jpg"
+
+    canvas = np.zeros((300, 300, 3), dtype=np.uint8)
+    cv2.line(canvas, (50, 50), (150, 150), (255, 255, 255), 3)
+    cv2.imwrite(str(img_path), canvas)
+
+    # Detect with hand anchor near start of line
+    res = tracker.detect_in_image(img_path, hand_anchor=(0.2, 0.2))
+    assert res is not None
+    handle, barrel, conf = res
+    assert conf > 0.0

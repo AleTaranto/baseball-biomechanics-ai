@@ -102,6 +102,8 @@ def test_get_or_create_movement_and_kinematics_generation(tmp_path: Path):
     ), patch(
         "app.services.kinematics_service.KinematicAnalysisService.build_recording",
         return_value=dummy_kinematic,
+    ), patch(
+        "app.services.pose_estimation_service.MediaPipePoseEstimator"
     ):
         mock_pe.return_value = MagicMock()
         m, k, f_dir = _get_or_create_movement_and_kinematics(video_id)
