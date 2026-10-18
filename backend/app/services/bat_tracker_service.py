@@ -490,6 +490,7 @@ class ColorMarkerBatTracker(BaseBatTracker):
 
         Returns ((handle_x, handle_y), (barrel_x, barrel_y), confidence).
         """
+        img: np.ndarray | None
         if isinstance(image_input, np.ndarray):
             img = image_input
         else:
