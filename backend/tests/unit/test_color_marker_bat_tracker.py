@@ -100,6 +100,23 @@ def test_color_marker_tracker_empty_image_returns_none() -> None:
     assert result is None
 
 
+def test_color_marker_tracker_detect_with_file_path_and_invalid_path(tmp_path: Path) -> None:
+    tracker = ColorMarkerBatTracker(color_preset="neon_green_orange")
+
+    # 1. Test with valid file path (Path object)
+    valid_img = _create_synthetic_marker_image()
+    valid_path = tmp_path / "test_marker.jpg"
+    cv2.imwrite(str(valid_path), valid_img)
+
+    result_file = tracker.detect_in_image(valid_path)
+    assert result_file is not None
+
+    # 2. Test with non-existent file path
+    invalid_path = tmp_path / "non_existent.jpg"
+    result_invalid = tracker.detect_in_image(invalid_path)
+    assert result_invalid is None
+
+
 def test_color_marker_tracker_full_track(tmp_path: Path) -> None:
     tracker = ColorMarkerBatTracker(color_preset="neon_green_orange")
 
